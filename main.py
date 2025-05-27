@@ -1,7 +1,6 @@
 """
 Nuclear Shape Plotter using Fourier-over-Spheroid (FoS) Parametrization
-Based on the parametrization described in "Fourier-over-Spheroid shape parametrization 
-applied to nuclear fission dynamics" by K. Pomorski et al.
+Based on the formulation in Pomorski et al. (2023)
 """
 
 from dataclasses import dataclass
@@ -20,24 +19,12 @@ class FoSParameters:
     """Class to store Fourier-over-Spheroid shape parameters."""
     protons: int
     neutrons: int
-    c: float = 1.0  # Elongation parameter
-    a3: float = 0.0  # Reflectional asymmetry
-    a4: float = 0.0  # Neck size
-    eta: float = 0.0  # Non-axiality
+    c: float = 1.0  # elongation
+    a3: float = 0.0  # reflection asymmetry
+    a4: float = 0.0  # neck parameter
+    a5: float = 0.0  # higher order parameter
+    a6: float = 0.0  # higher order parameter
     r0: float = 1.16  # Radius constant in fm
-    # Additional shape parameters
-    a1: float = 0.0
-    a2: float = 0.0  # Will be calculated from volume conservation
-    a5: float = 0.0
-    a6: float = 0.0
-
-    def __post_init__(self):
-        """Calculate a2 from volume conservation."""
-        self.update_a2()
-
-    def update_a2(self):
-        """Update a2 based on volume conservation: a2 = a4/3 - a6/5 + ..."""
-        self.a2 = self.a4 / 3.0 - self.a6 / 5.0
 
     @property
     def nucleons(self) -> int:
@@ -45,184 +32,160 @@ class FoSParameters:
         return self.protons + self.neutrons
 
     @property
-    def radius0(self) -> float:
-        """Radius of equivalent sphere."""
+    def R0(self) -> float:
+        """Radius of sphere with same volume."""
         return self.r0 * (self.nucleons ** (1 / 3))
 
     @property
     def z0(self) -> float:
-        """Half-length parameter."""
-        return self.c * self.radius0
+        """Half-length of nucleus."""
+        return self.c * self.R0
 
     @property
-    def z_shift(self) -> float:
-        """Shift to place mass center at origin."""
-        return -3.0 / (4.0 * np.pi) * self.z0 * (self.a3 - self.a5 / 2.0)
+    def zsh(self) -> float:
+        """Shift to place center of mass at origin."""
+        # From the paper: z_sh = -3/(4π) z_0 (a_3 - a_5/2 + ...)
+        return -3 / (4 * np.pi) * self.z0 * (self.a3 - self.a5 / 2)
+
+    @property
+    def a2(self) -> float:
+        """Volume conservation constraint: a2 = a4/3 - a6/5 + ..."""
+        return self.a4 / 3 - self.a6 / 5
 
 
 class FoSShapeCalculator:
-    """Class for performing Fourier-over-Spheroid shape calculations."""
+    """Class for calculating Fourier-over-Spheroid shapes."""
 
     def __init__(self, params: FoSParameters):
         self.params = params
 
     def f_function(self, u: np.ndarray) -> np.ndarray:
-        """Calculate the f(u) function for the shape."""
-        # Start with sphere: 1 - u²
-        f = 1.0 - u ** 2
+        """
+        Calculate the shape function f(u).
+
+        f(u) = 1 - u² - Σ[a_{2k} cos((k-1/2)πu) + a_{2k+1} sin(kπu)]
+        """
+        # Get volume-conserving a2
+        a2 = self.params.a2
+
+        # Base spherical shape
+        f = 1 - u ** 2
 
         # Add Fourier terms
-        # a1 term: cos(0.5π u)
-        f -= self.params.a1 * np.cos(0.5 * np.pi * u)
+        # k=1: a2 cos(π/2 u) + a3 sin(πu)
+        f -= a2 * np.cos(0.5 * np.pi * u)
+        f -= self.params.a3 * np.sin(np.pi * u)
 
-        # a2 term: sin(π u)
-        f -= self.params.a2 * np.sin(np.pi * u)
+        # k=2: a4 cos(3π/2 u) + a5 sin(2πu)
+        f -= self.params.a4 * np.cos(1.5 * np.pi * u)
+        f -= self.params.a5 * np.sin(2 * np.pi * u)
 
-        # a3 term: cos(1.5π u)
-        f -= self.params.a3 * np.cos(1.5 * np.pi * u)
-
-        # a4 term: sin(2π u)
-        f -= self.params.a4 * np.sin(2.0 * np.pi * u)
-
-        # a5 term: cos(2.5π u)
-        f -= self.params.a5 * np.cos(2.5 * np.pi * u)
-
-        # a6 term: sin(3π u)
-        f -= self.params.a6 * np.sin(3.0 * np.pi * u)
+        # k=3: a6 cos(5π/2 u)
+        f -= self.params.a6 * np.cos(2.5 * np.pi * u)
 
         return f
 
-    def calculate_shape_3d(self, z_points: np.ndarray, phi: float = 0) -> Tuple[np.ndarray, np.ndarray]:
-        """Calculate the shape in 3D (with non-axiality) for given z points and angle phi."""
-        z_min = -self.params.z0 + self.params.z_shift
-        z_max = self.params.z0 + self.params.z_shift
+    def calculate_shape(self, n_points: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate the shape coordinates in (z, ρ) space.
 
-        # Clip z values to valid range
-        z_clipped = np.clip(z_points, z_min, z_max)
+        For axially symmetric case (η=0):
+        ρ²(z) = R₀² c f((z - z_sh)/z₀)
 
-        # Calculate u = (z - z_shift) / z0
-        u = (z_clipped - self.params.z_shift) / self.params.z0
+        Returns:
+            z: axial coordinates
+            rho: radial coordinates
+        """
+        # Calculate bounds
+        z_min = -self.params.z0 + self.params.zsh
+        z_max = self.params.z0 + self.params.zsh
+
+        # Create z array
+        z = np.linspace(z_min, z_max, n_points)
+
+        # Calculate u = (z - z_sh) / z_0
+        u = (z - self.params.zsh) / self.params.z0
+
+        # Ensure u is in [-1, 1]
+        u = np.clip(u, -1, 1)
 
         # Calculate f(u)
-        f_u = self.f_function(u)
+        f_vals = self.f_function(u)
 
-        # Calculate rho²
-        rho_squared = self.params.radius0 ** 2 * self.params.c * f_u
+        # Calculate ρ² = R₀² c f(u)
+        rho_squared = self.params.R0 ** 2 * self.params.c * f_vals
 
-        # Apply non-axiality factor
-        eta = self.params.eta
-        non_axial_factor = (1 - eta ** 2) / (1 + eta ** 2 + 2 * eta * np.cos(2 * phi))
+        # Handle negative values (set to 0)
+        rho_squared = np.maximum(rho_squared, 0)
 
-        rho_squared *= non_axial_factor
-
-        # Ensure non-negative
-        rho_squared = np.maximum(0, rho_squared)
+        # Calculate ρ
         rho = np.sqrt(rho_squared)
 
-        return rho, z_clipped
+        return z, rho
 
-    def calculate_shape_2d(self, z_points: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Calculate axially symmetric shape (eta=0 or averaged over phi)."""
-        if self.params.eta == 0:
-            # Truly axially symmetric
-            return self.calculate_shape_3d(z_points, phi=0)
-        else:
-            # Average over phi for visualization
-            n_phi = 100
-            phi_values = np.linspace(0, 2 * np.pi, n_phi)
-            rho_sum = np.zeros_like(z_points)
-
-            for phi in phi_values:
-                rho, z = self.calculate_shape_3d(z_points, phi)
-                rho_sum += rho
-
-            rho_avg = rho_sum / n_phi
-            return rho_avg, z_points
-
-    def calculate_volume(self, n_points: int = 2000) -> float:
-        """Calculate volume by numerical integration."""
-        z_min = -self.params.z0 + self.params.z_shift
-        z_max = self.params.z0 + self.params.z_shift
-
-        z = np.linspace(z_min, z_max, n_points)
-        rho, _ = self.calculate_shape_2d(z)
-
-        # Volume element: π ρ² dz
-        dz = (z_max - z_min) / (n_points - 1)
-        volume = np.pi * np.sum(rho ** 2) * dz
-
+    @staticmethod
+    def calculate_volume(z: np.ndarray, rho: np.ndarray) -> float:
+        """
+        Calculate volume by numerical integration.
+        V = π ∫ ρ²(z) dz
+        """
+        # Use trapezoidal rule
+        dz = np.diff(z)
+        rho_mid = (rho[1:] + rho[:-1]) / 2
+        volume = np.pi * np.sum(rho_mid ** 2 * dz)
         return volume
 
-    def calculate_center_of_mass(self, n_points: int = 2000) -> float:
-        """Calculate z-coordinate of center of mass."""
-        z_min = -self.params.z0 + self.params.z_shift
-        z_max = self.params.z0 + self.params.z_shift
-
-        z = np.linspace(z_min, z_max, n_points)
-        rho, _ = self.calculate_shape_2d(z)
-
-        # Volume element: π ρ² dz
-        dz = (z_max - z_min) / (n_points - 1)
-        volume_elements = np.pi * rho ** 2 * dz
-
-        total_volume = np.sum(volume_elements)
-        z_cm = np.sum(z * volume_elements) / total_volume
-
-        return z_cm
-
-    def get_sphere_volume(self) -> float:
-        """Volume of equivalent sphere."""
-        return (4.0 / 3.0) * np.pi * self.params.radius0 ** 3
+    def calculate_sphere_volume(self) -> float:
+        """Calculate the volume of a sphere with same nucleon number."""
+        return (4 / 3) * np.pi * self.params.R0 ** 3
 
 
 class FoSShapePlotter:
-    """Class for handling the plotting interface and user interaction."""
+    """Class for plotting Fourier-over-Spheroid nuclear shapes."""
 
     def __init__(self):
         """Initialize the plotter with default settings."""
-        # Default values
+        # Default parameters
         self.initial_z = 92  # Uranium
         self.initial_n = 144
         self.initial_c = 1.0
         self.initial_a3 = 0.0
         self.initial_a4 = 0.0
-        self.initial_eta = 0.0
-
-        # Create figure
-        self.fig = None
-        self.ax_plot = None
-        self.line_scaled = None
-        self.line_scaled_mirror = None
-        self.line_unscaled = None
-        self.line_unscaled_mirror = None
-        self.sphere_line = None
-        self.point_cm = None
-        self.point_cm_unscaled = None
+        self.initial_a5 = 0.0
+        self.initial_a6 = 0.0
 
         # UI elements
+        self.fig = None
+        self.ax_plot = None
+        self.line = None
+        self.line_mirror = None
+        self.sphere_line = None
+        self.cm_point = None
+
+        # Sliders
         self.slider_z = None
         self.slider_n = None
         self.slider_c = None
         self.slider_a3 = None
         self.slider_a4 = None
-        self.slider_eta = None
-        self.buttons = []
+        self.slider_a5 = None
+        self.slider_a6 = None
+
+        # Buttons
         self.reset_button = None
         self.save_button = None
-        self.config_buttons = []
+        self.preset_buttons = []
 
         # Initialize parameters
-        self.params = FoSParameters(
+        self.nuclear_params = FoSParameters(
             protons=self.initial_z,
             neutrons=self.initial_n,
             c=self.initial_c,
             a3=self.initial_a3,
             a4=self.initial_a4,
-            eta=self.initial_eta
+            a5=self.initial_a5,
+            a6=self.initial_a6
         )
-
-        # Number of points for shape calculation
-        self.n_points = 2000
 
         # Set up the interface
         self.create_figure()
@@ -234,153 +197,113 @@ class FoSShapePlotter:
         self.fig = plt.figure(figsize=(12, 8))
         self.ax_plot = self.fig.add_subplot(111)
 
-        plt.subplots_adjust(left=0.1, bottom=0.35, right=0.9, top=0.9)
+        plt.subplots_adjust(left=0.1, bottom=0.4, right=0.9, top=0.9)
 
         # Set up the main plot
         self.ax_plot.set_aspect('equal')
-        self.ax_plot.grid(True)
+        self.ax_plot.grid(True, alpha=0.3)
         self.ax_plot.set_title('Nuclear Shape (Fourier-over-Spheroid Parametrization)', fontsize=14)
-        self.ax_plot.set_xlabel('Z (fm)', fontsize=12)
+        self.ax_plot.set_xlabel('z (fm)', fontsize=12)
         self.ax_plot.set_ylabel('ρ (fm)', fontsize=12)
 
         # Initialize the shape plot
-        z_points = np.linspace(-30, 30, self.n_points)
+        calculator = FoSShapeCalculator(self.nuclear_params)
+        z, rho = calculator.calculate_shape()
 
-        # Create placeholder lines
-        self.line_scaled, = self.ax_plot.plot([], [], 'b-', label='Scaled', linewidth=2)
-        self.line_scaled_mirror, = self.ax_plot.plot([], [], 'b-', linewidth=2)
-        self.line_unscaled, = self.ax_plot.plot([], [], 'r--', label='Unscaled', alpha=0.7)
-        self.line_unscaled_mirror, = self.ax_plot.plot([], [], 'r--', alpha=0.7)
-
-        # Reference sphere
+        # Create reference sphere
+        R0 = self.nuclear_params.R0
         theta = np.linspace(0, 2 * np.pi, 200)
-        R0 = self.params.radius0
         sphere_x = R0 * np.cos(theta)
         sphere_y = R0 * np.sin(theta)
+
+        # Plot shape and its mirror
+        self.line, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape', linewidth=2)
+        self.line_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
         self.sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray',
-                                              alpha=0.5, label='R₀')
+                                              alpha=0.5, label=f'R₀={R0:.2f} fm')
 
-        # Center of mass markers
-        self.point_cm, = self.ax_plot.plot(0, 0, 'bo', label='CM', markersize=8)
-        self.point_cm_unscaled, = self.ax_plot.plot(0, 0, 'ro', label='CM (unscaled)',
-                                                    markersize=8, alpha=0.7)
+        # Plot center of mass
+        self.cm_point, = self.ax_plot.plot(0, 0, 'ro', label='Center of mass', markersize=8)
 
-        self.ax_plot.legend()
+        self.ax_plot.legend(loc='upper right')
 
     def setup_controls(self):
         """Set up all UI controls."""
-        # Starting y position for first slider
+        # Starting y position for sliders
         first_slider_y = 0.02
-        slider_spacing = 0.03
+        slider_spacing = 0.04
 
-        # Proton (Z) controls
-        y_pos = first_slider_y
-        ax_z = plt.axes((0.25, y_pos, 0.5, 0.02))
-        ax_z_decrease = plt.axes((0.16, y_pos, 0.04, 0.02))
-        ax_z_increase = plt.axes((0.80, y_pos, 0.04, 0.02))
-
-        self.slider_z = Slider(ax=ax_z, label='Z', valmin=82, valmax=120,
+        # Create proton (Z) slider
+        ax_z = plt.axes((0.25, first_slider_y, 0.5, 0.03))
+        self.slider_z = Slider(ax=ax_z, label='Z', valmin=20, valmax=120,
                                valinit=self.initial_z, valstep=1)
-        btn_z_decrease = Button(ax_z_decrease, '-')
-        btn_z_increase = Button(ax_z_increase, '+')
-        self.buttons.extend([btn_z_decrease, btn_z_increase])
 
-        # Neutron (N) controls
-        y_pos += slider_spacing
-        ax_n = plt.axes((0.25, y_pos, 0.5, 0.02))
-        ax_n_decrease = plt.axes((0.16, y_pos, 0.04, 0.02))
-        ax_n_increase = plt.axes((0.80, y_pos, 0.04, 0.02))
-
-        self.slider_n = Slider(ax=ax_n, label='N', valmin=100, valmax=180,
+        # Create neutron (N) slider
+        ax_n = plt.axes((0.25, first_slider_y + slider_spacing, 0.5, 0.03))
+        self.slider_n = Slider(ax=ax_n, label='N', valmin=20, valmax=180,
                                valinit=self.initial_n, valstep=1)
-        btn_n_decrease = Button(ax_n_decrease, '-')
-        btn_n_increase = Button(ax_n_increase, '+')
-        self.buttons.extend([btn_n_decrease, btn_n_increase])
 
-        # Elongation (c) controls
-        y_pos += slider_spacing
-        ax_c = plt.axes((0.25, y_pos, 0.5, 0.02))
-        ax_c_decrease = plt.axes((0.16, y_pos, 0.04, 0.02))
-        ax_c_increase = plt.axes((0.80, y_pos, 0.04, 0.02))
+        # Create elongation (c) slider
+        ax_c = plt.axes((0.25, first_slider_y + 2 * slider_spacing, 0.5, 0.03))
+        self.slider_c = Slider(ax=ax_c, label='c', valmin=0.5, valmax=3.0,
+                               valinit=self.initial_c, valstep=0.01)
 
-        self.slider_c = Slider(ax=ax_c, label='c', valmin=0.7, valmax=3.0,
-                               valinit=self.initial_c, valstep=0.025)
-        btn_c_decrease = Button(ax_c_decrease, '-')
-        btn_c_increase = Button(ax_c_increase, '+')
-        self.buttons.extend([btn_c_decrease, btn_c_increase])
-
-        # Asymmetry (a3) controls
-        y_pos += slider_spacing
-        ax_a3 = plt.axes((0.25, y_pos, 0.5, 0.02))
-        ax_a3_decrease = plt.axes((0.16, y_pos, 0.04, 0.02))
-        ax_a3_increase = plt.axes((0.80, y_pos, 0.04, 0.02))
-
+        # Create a3 slider (reflection asymmetry)
+        ax_a3 = plt.axes((0.25, first_slider_y + 3 * slider_spacing, 0.5, 0.03))
         self.slider_a3 = Slider(ax=ax_a3, label='a₃', valmin=-0.5, valmax=0.5,
-                                valinit=self.initial_a3, valstep=0.025)
-        btn_a3_decrease = Button(ax_a3_decrease, '-')
-        btn_a3_increase = Button(ax_a3_increase, '+')
-        self.buttons.extend([btn_a3_decrease, btn_a3_increase])
+                                valinit=self.initial_a3, valstep=0.01)
 
-        # Neck (a4) controls
-        y_pos += slider_spacing
-        ax_a4 = plt.axes((0.25, y_pos, 0.5, 0.02))
-        ax_a4_decrease = plt.axes((0.16, y_pos, 0.04, 0.02))
-        ax_a4_increase = plt.axes((0.80, y_pos, 0.04, 0.02))
+        # Create a4 slider (neck parameter)
+        ax_a4 = plt.axes((0.25, first_slider_y + 4 * slider_spacing, 0.5, 0.03))
+        self.slider_a4 = Slider(ax=ax_a4, label='a₄', valmin=-0.5, valmax=0.75,
+                                valinit=self.initial_a4, valstep=0.01)
 
-        self.slider_a4 = Slider(ax=ax_a4, label='a₄', valmin=0.0, valmax=0.8,
-                                valinit=self.initial_a4, valstep=0.025)
-        btn_a4_decrease = Button(ax_a4_decrease, '-')
-        btn_a4_increase = Button(ax_a4_increase, '+')
-        self.buttons.extend([btn_a4_decrease, btn_a4_increase])
+        # Create a5 slider
+        ax_a5 = plt.axes((0.25, first_slider_y + 5 * slider_spacing, 0.5, 0.03))
+        self.slider_a5 = Slider(ax=ax_a5, label='a₅', valmin=-0.3, valmax=0.3,
+                                valinit=self.initial_a5, valstep=0.01)
 
-        # Non-axiality (eta) controls
-        y_pos += slider_spacing
-        ax_eta = plt.axes((0.25, y_pos, 0.5, 0.02))
-        ax_eta_decrease = plt.axes((0.16, y_pos, 0.04, 0.02))
-        ax_eta_increase = plt.axes((0.80, y_pos, 0.04, 0.02))
+        # Create a6 slider
+        ax_a6 = plt.axes((0.25, first_slider_y + 6 * slider_spacing, 0.5, 0.03))
+        self.slider_a6 = Slider(ax=ax_a6, label='a₆', valmin=-0.3, valmax=0.3,
+                                valinit=self.initial_a6, valstep=0.01)
 
-        self.slider_eta = Slider(ax=ax_eta, label='η', valmin=0.0, valmax=0.5,
-                                 valinit=self.initial_eta, valstep=0.025)
-        btn_eta_decrease = Button(ax_eta_decrease, '-')
-        btn_eta_increase = Button(ax_eta_increase, '+')
-        self.buttons.extend([btn_eta_decrease, btn_eta_increase])
-
-        # Style font sizes
+        # Style font sizes for all sliders
         for slider in [self.slider_z, self.slider_n, self.slider_c,
-                       self.slider_a3, self.slider_a4, self.slider_eta]:
+                       self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6]:
             slider.label.set_fontsize(12)
             slider.valtext.set_fontsize(12)
 
-        # Create action buttons
-        ax_reset = plt.axes((0.8, 0.25, 0.1, 0.04))
+        # Create buttons
+        ax_reset = plt.axes((0.8, 0.32, 0.1, 0.04))
         self.reset_button = Button(ax=ax_reset, label='Reset')
 
-        ax_save = plt.axes((0.8, 0.2, 0.1, 0.04))
+        ax_save = plt.axes((0.8, 0.27, 0.1, 0.04))
         self.save_button = Button(ax=ax_save, label='Save Plot')
 
-        # Create configuration buttons
-        config_labels = ['Sphere', 'Prolate', 'Asymmetric', 'Necked']
-        for i, label in enumerate(config_labels):
-            ax_config = plt.axes((0.02, 0.6 - i * 0.1, 0.1, 0.04))
-            btn = Button(ax=ax_config, label=label)
-            self.config_buttons.append(btn)
+        # Create preset buttons
+        preset_labels = ['Sphere', 'Prolate', 'Oblate', 'Pear-shaped', 'Two-center']
+        for i, label in enumerate(preset_labels):
+            ax_preset = plt.axes((0.02, 0.6 - i * 0.06, 0.1, 0.04))
+            btn = Button(ax=ax_preset, label=label)
+            self.preset_buttons.append(btn)
 
-    def apply_configuration(self, config_num):
+    def apply_preset(self, preset_num):
         """Apply a predefined configuration."""
-        configs = {
-            0: {'Z': 92, 'N': 144, 'c': 1.0, 'a3': 0.0, 'a4': 0.0, 'eta': 0.0},  # Sphere
-            1: {'Z': 92, 'N': 144, 'c': 1.5, 'a3': 0.0, 'a4': 0.0, 'eta': 0.0},  # Prolate
-            2: {'Z': 92, 'N': 144, 'c': 1.8, 'a3': 0.2, 'a4': 0.1, 'eta': 0.0},  # Asymmetric
-            3: {'Z': 92, 'N': 144, 'c': 2.2, 'a3': 0.0, 'a4': 0.5, 'eta': 0.0}  # Necked
+        presets = {
+            0: {'c': 1.0, 'a3': 0.0, 'a4': 0.0, 'a5': 0.0, 'a6': 0.0},  # Sphere
+            1: {'c': 1.5, 'a3': 0.0, 'a4': 0.0, 'a5': 0.0, 'a6': 0.0},  # Prolate
+            2: {'c': 0.7, 'a3': 0.0, 'a4': 0.0, 'a5': 0.0, 'a6': 0.0},  # Oblate
+            3: {'c': 1.2, 'a3': 0.2, 'a4': 0.0, 'a5': 0.0, 'a6': 0.0},  # Pear-shaped
+            4: {'c': 2.0, 'a3': 0.0, 'a4': 0.5, 'a5': 0.0, 'a6': 0.0},  # Two-center
         }
 
-        config = configs[config_num]
-        self.slider_z.set_val(config['Z'])
-        self.slider_n.set_val(config['N'])
-        self.slider_c.set_val(config['c'])
-        self.slider_a3.set_val(config['a3'])
-        self.slider_a4.set_val(config['a4'])
-        self.slider_eta.set_val(config['eta'])
+        preset = presets[preset_num]
+        self.slider_c.set_val(preset['c'])
+        self.slider_a3.set_val(preset['a3'])
+        self.slider_a4.set_val(preset['a4'])
+        self.slider_a5.set_val(preset['a5'])
+        self.slider_a6.set_val(preset['a6'])
 
     def setup_event_handlers(self):
         """Set up all event handlers for controls."""
@@ -390,35 +313,16 @@ class FoSShapePlotter:
         self.slider_c.on_changed(self.update_plot)
         self.slider_a3.on_changed(self.update_plot)
         self.slider_a4.on_changed(self.update_plot)
-        self.slider_eta.on_changed(self.update_plot)
+        self.slider_a5.on_changed(self.update_plot)
+        self.slider_a6.on_changed(self.update_plot)
 
         # Connect button handlers
-        sliders = [self.slider_z, self.slider_n, self.slider_c,
-                   self.slider_a3, self.slider_a4, self.slider_eta]
-
-        for i, slider in enumerate(sliders):
-            self.buttons[i * 2].on_clicked(self.create_button_handler(slider, -1))
-            self.buttons[i * 2 + 1].on_clicked(self.create_button_handler(slider, 1))
-
-        # Connect action buttons
         self.reset_button.on_clicked(self.reset_values)
         self.save_button.on_clicked(self.save_plot)
 
-        # Connect configuration buttons
-        for i, btn in enumerate(self.config_buttons):
-            btn.on_clicked(lambda event, num=i: self.apply_configuration(num))
-
-    @staticmethod
-    def create_button_handler(slider_obj: Slider, increment: int):
-        """Create a button click handler for a slider object."""
-
-        def handler(_):
-            """Handle button click event."""
-            new_val = slider_obj.val + increment * slider_obj.valstep
-            if slider_obj.valmin <= new_val <= slider_obj.valmax:
-                slider_obj.set_val(new_val)
-
-        return handler
+        # Connect preset buttons
+        for i, btn in enumerate(self.preset_buttons):
+            btn.on_clicked(lambda event, num=i: self.apply_preset(num))
 
     def reset_values(self, _):
         """Reset all sliders to their initial values."""
@@ -427,115 +331,97 @@ class FoSShapePlotter:
         self.slider_c.set_val(self.initial_c)
         self.slider_a3.set_val(self.initial_a3)
         self.slider_a4.set_val(self.initial_a4)
-        self.slider_eta.set_val(self.initial_eta)
+        self.slider_a5.set_val(self.initial_a5)
+        self.slider_a6.set_val(self.initial_a6)
 
     def save_plot(self, _):
         """Save the current plot to a file."""
-        params = [
-            int(self.slider_z.val),
-            int(self.slider_n.val),
-            self.slider_c.val,
-            self.slider_a3.val,
-            self.slider_a4.val,
-            self.slider_eta.val
-        ]
-        filename = f"fos_shape_{'_'.join(f'{p:.2f}' for p in params)}.png"
-        self.fig.savefig(filename)
+        params = [self.slider_c.val, self.slider_a3.val, self.slider_a4.val,
+                  self.slider_a5.val, self.slider_a6.val]
+        filename = f"fos_shape_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + \
+                   f"{'_'.join(f'{p:.3f}' for p in params)}.png"
+        self.fig.savefig(filename, dpi=300, bbox_inches='tight')
         print(f"Plot saved as {filename}")
 
     def update_plot(self, _):
         """Update the plot with new parameters."""
-        # Update parameters
-        self.params.protons = int(self.slider_z.val)
-        self.params.neutrons = int(self.slider_n.val)
-        self.params.c = self.slider_c.val
-        self.params.a3 = self.slider_a3.val
-        self.params.a4 = self.slider_a4.val
-        self.params.eta = self.slider_eta.val
-        self.params.update_a2()  # Update a2 from volume conservation
+        # Get current parameters
+        current_params = FoSParameters(
+            protons=int(self.slider_z.val),
+            neutrons=int(self.slider_n.val),
+            c=self.slider_c.val,
+            a3=self.slider_a3.val,
+            a4=self.slider_a4.val,
+            a5=self.slider_a5.val,
+            a6=self.slider_a6.val
+        )
 
-        # Create calculator
-        calculator = FoSShapeCalculator(self.params)
+        # Calculate new shape
+        calculator = FoSShapeCalculator(current_params)
+        z, rho = calculator.calculate_shape()
 
-        # Calculate shape bounds
-        z_min = -self.params.z0 + self.params.z_shift
-        z_max = self.params.z0 + self.params.z_shift
-        z_range = z_max - z_min
-
-        # Create z points with some margin
-        z_points = np.linspace(z_min - 0.1 * z_range, z_max + 0.1 * z_range, self.n_points)
-
-        # Calculate unscaled shape
-        rho_unscaled, z_unscaled = calculator.calculate_shape_2d(z_points)
-
-        # Calculate volumes
-        sphere_volume = calculator.get_sphere_volume()
-        shape_volume = calculator.calculate_volume()
-        volume_scale = (sphere_volume / shape_volume) ** (1 / 3)
-
-        # Calculate center of mass
-        cm_unscaled = calculator.calculate_center_of_mass()
-
-        # Scale the shape
-        rho_scaled = rho_unscaled * volume_scale
-        z_scaled = (z_unscaled - cm_unscaled) * volume_scale
-
-        # Update plots
-        self.line_scaled.set_data(z_scaled, rho_scaled)
-        self.line_scaled_mirror.set_data(z_scaled, -rho_scaled)
-        self.line_unscaled.set_data(z_unscaled, rho_unscaled)
-        self.line_unscaled_mirror.set_data(z_unscaled, -rho_unscaled)
-
-        # Update center of mass markers
-        self.point_cm.set_data([0], [0])  # Scaled shape is centered
-        self.point_cm_unscaled.set_data([cm_unscaled], [0])
+        # Update shape lines
+        self.line.set_data(z, rho)
+        self.line_mirror.set_data(z, -rho)
 
         # Update reference sphere
-        r0 = self.params.radius0
+        R0 = current_params.R0
         theta = np.linspace(0, 2 * np.pi, 200)
-        sphere_x = r0 * np.cos(theta)
-        sphere_y = r0 * np.sin(theta)
+        sphere_x = R0 * np.cos(theta)
+        sphere_y = R0 * np.sin(theta)
         self.sphere_line.set_data(sphere_x, sphere_y)
+        self.sphere_line.set_label(f'R₀={R0:.2f} fm')
 
         # Update plot limits
-        max_val = max(np.max(np.abs(z_scaled)), np.max(np.abs(rho_scaled))) * 1.2
-        max_val = max(max_val, r0 * 1.2)
+        max_val = max(np.max(np.abs(z)), np.max(np.abs(rho))) * 1.2
         self.ax_plot.set_xlim(-max_val, max_val)
         self.ax_plot.set_ylim(-max_val, max_val)
 
-        # Calculate dimensions
-        max_z = np.max(np.abs(z_scaled))
-        max_rho = np.max(np.abs(rho_scaled))
-        total_length = 2 * max_z
-        total_width = 2 * max_rho
+        # Calculate volumes
+        actual_volume = calculator.calculate_volume(z, rho)
+        sphere_volume = calculator.calculate_sphere_volume()
 
-        # Add info text
+        # Calculate dimensions
+        max_z = np.max(np.abs(z))
+        max_rho = np.max(rho)
+
+        # Calculate neck radius at a4 = 0.72 (scission point)
+        if current_params.a4 > 0:
+            neck_radius = min(rho[len(rho) // 2 - 10:len(rho) // 2 + 10])
+        else:
+            neck_radius = max_rho
+
+        # Add information text
         info_text = (
-            f"A = {self.params.nucleons} (Z={self.params.protons}, N={self.params.neutrons})\n"
-            f"R₀ = {self.params.radius0:.3f} fm\n"
+            f"A = {current_params.nucleons}\n"
+            f"R₀ = {R0:.3f} fm\n"
+            f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
+            f"z_shift = {current_params.zsh:.3f} fm\n"
+            f"Shape volume: {actual_volume:.1f} fm³\n"
             f"Sphere volume: {sphere_volume:.1f} fm³\n"
-            f"Shape volume: {shape_volume:.1f} fm³\n"
-            f"Volume scale factor: {volume_scale:.4f}\n"
-            f"CM (unscaled): {cm_unscaled:.3f} fm\n"
-            f"Length: {total_length:.1f} fm\n"
-            f"Width: {total_width:.1f} fm\n"
-            f"Aspect ratio: {total_length / total_width:.2f}"
+            f"Volume ratio: {actual_volume / sphere_volume:.3f}\n"
+            f"Max z: {max_z:.2f} fm\n"
+            f"Max ρ: {max_rho:.2f} fm\n"
+            f"Neck radius: {neck_radius:.2f} fm"
         )
 
-        # Remove old text
+        # Remove old text if it exists
         for artist in self.ax_plot.texts:
             artist.remove()
 
         # Add new text
-        self.ax_plot.text(1.05 * max_val, 0.5 * max_val, info_text,
-                          fontsize=10, verticalalignment='center',
-                          bbox=dict(boxstyle="round,pad=0.5", facecolor="white", alpha=0.8))
+        self.ax_plot.text(0.02, 0.98, info_text, transform=self.ax_plot.transAxes,
+                          fontsize=10, verticalalignment='top',
+                          bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
         # Update title
-        title = f'Nuclear Shape: FoS Parametrization (A={self.params.nucleons})'
-        if self.params.eta > 0:
-            title += f' [η={self.params.eta:.2f}]'
-        self.ax_plot.set_title(title, fontsize=14)
+        self.ax_plot.set_title(
+            f'Nuclear Shape (Z={current_params.protons}, N={current_params.neutrons}, '
+            f'A={current_params.nucleons})', fontsize=14
+        )
+
+        # Update legend
+        self.ax_plot.legend(loc='upper right')
 
         self.fig.canvas.draw_idle()
 
