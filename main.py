@@ -1,6 +1,7 @@
 """
 Nuclear Shape Plotter using Fourier-over-Spheroid (FoS) Parametrization
 Based on the formulation in Pomorski et al. (2023)
+With volume normalization to ensure volume conservation
 """
 
 from dataclasses import dataclass
@@ -123,6 +124,34 @@ class FoSShapeCalculator:
 
         return z, rho
 
+    def calculate_normalized_shape(self, n_points: int = 1000) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
+        """
+        Calculate the shape coordinates with volume normalization.
+
+        Returns:
+            z: axial coordinates (scaled)
+            rho: radial coordinates (scaled)
+            original_volume: volume before normalization
+            sphere_volume: reference sphere volume
+            scaling_factor: the applied scaling factor
+        """
+        # Get original shape
+        z_orig, rho_orig = self.calculate_shape(n_points)
+
+        # Calculate volumes
+        original_volume = self.calculate_volume(z_orig, rho_orig)
+        sphere_volume = self.calculate_sphere_volume()
+
+        # Calculate scaling factor to conserve volume
+        # V_scaled = scaling_factor^3 * V_original = V_sphere
+        scaling_factor = (sphere_volume / original_volume) ** (1 / 3)
+
+        # Apply scaling to both z and rho coordinates
+        z_normalized = z_orig * scaling_factor
+        rho_normalized = rho_orig * scaling_factor
+
+        return z_normalized, rho_normalized, original_volume, sphere_volume, scaling_factor
+
     @staticmethod
     def calculate_volume(z: np.ndarray, rho: np.ndarray) -> float:
         """
@@ -208,7 +237,7 @@ class FoSShapePlotter:
 
         # Initialize the shape plot
         calculator = FoSShapeCalculator(self.nuclear_params)
-        z, rho = calculator.calculate_shape()
+        z, rho, _, _, _ = calculator.calculate_normalized_shape()
 
         # Create reference sphere
         R0 = self.nuclear_params.R0
@@ -217,7 +246,7 @@ class FoSShapePlotter:
         sphere_y = R0 * np.sin(theta)
 
         # Plot shape and its mirror
-        self.line, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape', linewidth=2)
+        self.line, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape (normalized)', linewidth=2)
         self.line_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
         self.sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray',
                                               alpha=0.5, label=f'R₀={R0:.2f} fm')
@@ -356,9 +385,9 @@ class FoSShapePlotter:
             a6=self.slider_a6.val
         )
 
-        # Calculate new shape
+        # Calculate normalized shape
         calculator = FoSShapeCalculator(current_params)
-        z, rho = calculator.calculate_shape()
+        z, rho, original_volume, sphere_volume, scaling_factor = calculator.calculate_normalized_shape()
 
         # Update shape lines
         self.line.set_data(z, rho)
@@ -377,9 +406,8 @@ class FoSShapePlotter:
         self.ax_plot.set_xlim(-max_val, max_val)
         self.ax_plot.set_ylim(-max_val, max_val)
 
-        # Calculate volumes
-        actual_volume = calculator.calculate_volume(z, rho)
-        sphere_volume = calculator.calculate_sphere_volume()
+        # Calculate normalized volume for verification
+        normalized_volume = calculator.calculate_volume(z, rho)
 
         # Calculate dimensions
         max_z = np.max(np.abs(z))
@@ -397,9 +425,13 @@ class FoSShapePlotter:
             f"R₀ = {R0:.3f} fm\n"
             f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
             f"z_shift = {current_params.zsh:.3f} fm\n"
-            f"Shape volume: {actual_volume:.1f} fm³\n"
-            f"Sphere volume: {sphere_volume:.1f} fm³\n"
-            f"Volume ratio: {actual_volume / sphere_volume:.3f}\n"
+            f"\nVolume Information:\n"
+            f"Reference sphere volume: {sphere_volume:.1f} fm³\n"
+            f"Original FoS volume: {original_volume:.1f} fm³\n"
+            f"Normalized FoS volume: {normalized_volume:.1f} fm³\n"
+            f"Scaling factor: {scaling_factor:.4f}\n"
+            f"Volume ratio (original): {original_volume / sphere_volume:.4f}\n"
+            f"\nShape dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
             f"Neck radius: {neck_radius:.2f} fm"
@@ -417,7 +449,7 @@ class FoSShapePlotter:
         # Update title
         self.ax_plot.set_title(
             f'Nuclear Shape (Z={current_params.protons}, N={current_params.neutrons}, '
-            f'A={current_params.nucleons})', fontsize=14
+            f'A={current_params.nucleons}) - Volume Normalized', fontsize=14
         )
 
         # Update legend
