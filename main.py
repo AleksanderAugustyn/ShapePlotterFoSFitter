@@ -25,6 +25,7 @@ class FoSParameters:
     a4: float = 0.0  # neck parameter
     a5: float = 0.0  # higher order parameter
     a6: float = 0.0  # higher order parameter
+    q2: float = 0.0  # entangled parameter: c = q2 + 1.0 + 1.5 * a4
     r0: float = 1.16  # Radius constant in fm
 
     @property
@@ -177,11 +178,14 @@ class FoSShapePlotter:
         # Default parameters
         self.initial_z = 92  # Uranium
         self.initial_n = 144
-        self.initial_c = 1.0
+        self.initial_q2 = 0.0
         self.initial_a3 = 0.0
         self.initial_a4 = 0.0
         self.initial_a5 = 0.0
         self.initial_a6 = 0.0
+
+        # Calculate initial c from q2 and a4
+        self.initial_c = self.initial_q2 + 1.0 + 1.5 * self.initial_a4
 
         # UI elements
         self.fig = None
@@ -195,6 +199,7 @@ class FoSShapePlotter:
         self.slider_z = None
         self.slider_n = None
         self.slider_c = None
+        self.slider_q2 = None
         self.slider_a3 = None
         self.slider_a4 = None
         self.slider_a5 = None
@@ -205,11 +210,15 @@ class FoSShapePlotter:
         self.save_button = None
         self.preset_buttons = []
 
+        # Flag to prevent infinite update loops
+        self.updating = False
+
         # Initialize parameters
         self.nuclear_params = FoSParameters(
             protons=self.initial_z,
             neutrons=self.initial_n,
             c=self.initial_c,
+            q2=self.initial_q2,
             a3=self.initial_a3,
             a4=self.initial_a4,
             a5=self.initial_a5,
@@ -226,7 +235,7 @@ class FoSShapePlotter:
         self.fig = plt.figure(figsize=(12, 8))
         self.ax_plot = self.fig.add_subplot(111)
 
-        plt.subplots_adjust(left=0.1, bottom=0.4, right=0.9, top=0.9)
+        plt.subplots_adjust(left=0.1, bottom=0.45, right=0.9, top=0.9)
 
         # Set up the main plot
         self.ax_plot.set_aspect('equal')
@@ -277,37 +286,42 @@ class FoSShapePlotter:
         self.slider_c = Slider(ax=ax_c, label='c', valmin=0.5, valmax=3.0,
                                valinit=self.initial_c, valstep=0.01)
 
+        # Create q2 slider (entangled with c and a4)
+        ax_q2 = plt.axes((0.25, first_slider_y + 3 * slider_spacing, 0.5, 0.03))
+        self.slider_q2 = Slider(ax=ax_q2, label='q₂', valmin=-1.0, valmax=2.0,
+                                valinit=self.initial_q2, valstep=0.01)
+
         # Create a3 slider (reflection asymmetry)
-        ax_a3 = plt.axes((0.25, first_slider_y + 3 * slider_spacing, 0.5, 0.03))
+        ax_a3 = plt.axes((0.25, first_slider_y + 4 * slider_spacing, 0.5, 0.03))
         self.slider_a3 = Slider(ax=ax_a3, label='a₃', valmin=-0.5, valmax=0.5,
                                 valinit=self.initial_a3, valstep=0.01)
 
         # Create a4 slider (neck parameter)
-        ax_a4 = plt.axes((0.25, first_slider_y + 4 * slider_spacing, 0.5, 0.03))
+        ax_a4 = plt.axes((0.25, first_slider_y + 5 * slider_spacing, 0.5, 0.03))
         self.slider_a4 = Slider(ax=ax_a4, label='a₄', valmin=-0.5, valmax=0.75,
                                 valinit=self.initial_a4, valstep=0.01)
 
         # Create a5 slider
-        ax_a5 = plt.axes((0.25, first_slider_y + 5 * slider_spacing, 0.5, 0.03))
+        ax_a5 = plt.axes((0.25, first_slider_y + 6 * slider_spacing, 0.5, 0.03))
         self.slider_a5 = Slider(ax=ax_a5, label='a₅', valmin=-0.3, valmax=0.3,
                                 valinit=self.initial_a5, valstep=0.01)
 
         # Create a6 slider
-        ax_a6 = plt.axes((0.25, first_slider_y + 6 * slider_spacing, 0.5, 0.03))
+        ax_a6 = plt.axes((0.25, first_slider_y + 7 * slider_spacing, 0.5, 0.03))
         self.slider_a6 = Slider(ax=ax_a6, label='a₆', valmin=-0.3, valmax=0.3,
                                 valinit=self.initial_a6, valstep=0.01)
 
         # Style font sizes for all sliders
-        for slider in [self.slider_z, self.slider_n, self.slider_c,
+        for slider in [self.slider_z, self.slider_n, self.slider_c, self.slider_q2,
                        self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6]:
             slider.label.set_fontsize(12)
             slider.valtext.set_fontsize(12)
 
         # Create buttons
-        ax_reset = plt.axes((0.8, 0.32, 0.1, 0.04))
+        ax_reset = plt.axes((0.8, 0.37, 0.1, 0.04))
         self.reset_button = Button(ax=ax_reset, label='Reset')
 
-        ax_save = plt.axes((0.8, 0.27, 0.1, 0.04))
+        ax_save = plt.axes((0.8, 0.32, 0.1, 0.04))
         self.save_button = Button(ax=ax_save, label='Save Plot')
 
         # Create preset buttons
@@ -328,20 +342,31 @@ class FoSShapePlotter:
         }
 
         preset = presets[preset_num]
-        self.slider_c.set_val(preset['c'])
+        self.updating = True
+
+        # Set the parameters
         self.slider_a3.set_val(preset['a3'])
         self.slider_a4.set_val(preset['a4'])
         self.slider_a5.set_val(preset['a5'])
         self.slider_a6.set_val(preset['a6'])
+
+        # Set c and calculate q2
+        self.slider_c.set_val(preset['c'])
+        q2_val = preset['c'] - 1.0 - 1.5 * preset['a4']
+        self.slider_q2.set_val(q2_val)
+
+        self.updating = False
+        self.update_plot(None)
 
     def setup_event_handlers(self):
         """Set up all event handlers for controls."""
         # Connect slider update functions
         self.slider_z.on_changed(self.update_plot)
         self.slider_n.on_changed(self.update_plot)
-        self.slider_c.on_changed(self.update_plot)
+        self.slider_c.on_changed(self.on_c_changed)
+        self.slider_q2.on_changed(self.on_q2_changed)
         self.slider_a3.on_changed(self.update_plot)
-        self.slider_a4.on_changed(self.update_plot)
+        self.slider_a4.on_changed(self.on_a4_changed)
         self.slider_a5.on_changed(self.update_plot)
         self.slider_a6.on_changed(self.update_plot)
 
@@ -353,20 +378,54 @@ class FoSShapePlotter:
         for i, btn in enumerate(self.preset_buttons):
             btn.on_clicked(lambda event, num=i: self.apply_preset(num))
 
+    def on_c_changed(self, val):
+        """Handle changes to c slider - update q2."""
+        if not self.updating:
+            self.updating = True
+            # q2 = c - 1.0 - 1.5 * a4
+            q2_val = val - 1.0 - 1.5 * self.slider_a4.val
+            self.slider_q2.set_val(q2_val)
+            self.updating = False
+        self.update_plot(val)
+
+    def on_q2_changed(self, val):
+        """Handle changes to q2 slider - update c."""
+        if not self.updating:
+            self.updating = True
+            # c = q2 + 1.0 + 1.5 * a4
+            c_val = val + 1.0 + 1.5 * self.slider_a4.val
+            self.slider_c.set_val(c_val)
+            self.updating = False
+        self.update_plot(val)
+
+    def on_a4_changed(self, val):
+        """Handle changes to a4 slider - update c based on q2."""
+        if not self.updating:
+            self.updating = True
+            # c = q2 + 1.0 + 1.5 * a4
+            c_val = self.slider_q2.val + 1.0 + 1.5 * val
+            self.slider_c.set_val(c_val)
+            self.updating = False
+        self.update_plot(val)
+
     def reset_values(self, _):
         """Reset all sliders to their initial values."""
+        self.updating = True
         self.slider_z.set_val(self.initial_z)
         self.slider_n.set_val(self.initial_n)
-        self.slider_c.set_val(self.initial_c)
+        self.slider_q2.set_val(self.initial_q2)
         self.slider_a3.set_val(self.initial_a3)
         self.slider_a4.set_val(self.initial_a4)
         self.slider_a5.set_val(self.initial_a5)
         self.slider_a6.set_val(self.initial_a6)
+        self.slider_c.set_val(self.initial_c)
+        self.updating = False
+        self.update_plot(None)
 
     def save_plot(self, _):
         """Save the current plot to a file."""
-        params = [self.slider_c.val, self.slider_a3.val, self.slider_a4.val,
-                  self.slider_a5.val, self.slider_a6.val]
+        params = [self.slider_c.val, self.slider_q2.val, self.slider_a3.val,
+                  self.slider_a4.val, self.slider_a5.val, self.slider_a6.val]
         filename = f"fos_shape_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + \
                    f"{'_'.join(f'{p:.3f}' for p in params)}.png"
         self.fig.savefig(filename, dpi=300, bbox_inches='tight')
@@ -379,6 +438,7 @@ class FoSShapePlotter:
             protons=int(self.slider_z.val),
             neutrons=int(self.slider_n.val),
             c=self.slider_c.val,
+            q2=self.slider_q2.val,
             a3=self.slider_a3.val,
             a4=self.slider_a4.val,
             a5=self.slider_a5.val,
@@ -425,6 +485,9 @@ class FoSShapePlotter:
             f"R₀ = {R0:.3f} fm\n"
             f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
             f"z_shift = {current_params.zsh:.3f} fm\n"
+            f"\nParameter Relations:\n"
+            f"c = q₂ + 1.0 + 1.5a₄\n"
+            f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference sphere volume: {sphere_volume:.1f} fm³\n"
             f"Original FoS volume: {original_volume:.1f} fm³\n"
