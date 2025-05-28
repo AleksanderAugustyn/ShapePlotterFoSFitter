@@ -77,10 +77,47 @@ class TestCalculateVolume(unittest.TestCase):
         # Volume should be conserved within 3% tolerance
         self.assertAlmostEqual(calculated_volume, expected_volume, delta=expected_volume * 0.03)
 
+    def test_q2_parameter_relationship(self):
+        """Test that q2, c, and a4 maintain their relationship."""
+        # Test case 1: q2 = 0.5, a4 = 0.2
+        q2 = 0.5
+        a4 = 0.2
+        expected_c = q2 + 1.0 + 1.5 * a4  # 0.5 + 1.0 + 0.3 = 1.8
+
+        params = FoSParameters(protons=92, neutrons=144, c=expected_c, q2=q2, a4=a4)
+        self.assertAlmostEqual(params.c, 1.8, places=6)
+
+        # Test case 2: q2 = -0.3, a4 = 0.4
+        q2 = -0.3
+        a4 = 0.4
+        expected_c = q2 + 1.0 + 1.5 * a4  # -0.3 + 1.0 + 0.6 = 1.3
+
+        params = FoSParameters(protons=92, neutrons=144, c=expected_c, q2=q2, a4=a4)
+        self.assertAlmostEqual(params.c, 1.3, places=6)
+
+    def test_q2_volume_conservation(self):
+        """Test volume conservation with different q2 values."""
+        for q2 in [-0.5, 0.0, 0.5, 1.0]:
+            for a4 in [0.0, 0.2, 0.4]:
+                c = q2 + 1.0 + 1.5 * a4
+                params = FoSParameters(protons=92, neutrons=144, c=c, q2=q2, a4=a4)
+                calculator = FoSShapeCalculator(params)
+                z, rho = calculator.calculate_shape()
+
+                calculated_volume = calculator.calculate_volume(z, rho)
+                expected_volume = calculator.calculate_sphere_volume()
+
+                # Volume should be conserved within 5% tolerance
+                self.assertAlmostEqual(
+                    calculated_volume, expected_volume,
+                    delta=expected_volume * 0.05,
+                    msg=f"Volume not conserved for q2={q2}, a4={a4}, c={c}"
+                )
+
     def test_multiple_parameters_volume(self):
         """Test volume calculation with multiple non-zero parameters."""
         complex_params = FoSParameters(
-            protons=92, neutrons=144, c=1.3, a3=0.1, a4=0.2, a5=0.05, a6=0.02
+            protons=92, neutrons=144, c=1.3, q2=0.1, a3=0.1, a4=0.2, a5=0.05, a6=0.02
         )
         calculator = FoSShapeCalculator(complex_params)
         z, rho = calculator.calculate_shape()
@@ -94,7 +131,7 @@ class TestCalculateVolume(unittest.TestCase):
     def test_different_nucleus_sizes(self):
         """Test volume calculation for different nucleus sizes."""
         # Light nucleus
-        light_params = FoSParameters(protons=26, neutrons=30, c=1.2)
+        light_params = FoSParameters(protons=26, neutrons=30, c=1.2, q2=0.2)
         light_calculator = FoSShapeCalculator(light_params)
         z, rho = light_calculator.calculate_shape()
 
@@ -104,7 +141,7 @@ class TestCalculateVolume(unittest.TestCase):
         self.assertAlmostEqual(calculated_volume, expected_volume, delta=expected_volume * 0.02)
 
         # Heavy nucleus
-        heavy_params = FoSParameters(protons=110, neutrons=170, c=1.1)
+        heavy_params = FoSParameters(protons=110, neutrons=170, c=1.1, q2=0.1)
         heavy_calculator = FoSShapeCalculator(heavy_params)
         z, rho = heavy_calculator.calculate_shape()
 
@@ -112,6 +149,28 @@ class TestCalculateVolume(unittest.TestCase):
         expected_volume = heavy_calculator.calculate_sphere_volume()
 
         self.assertAlmostEqual(calculated_volume, expected_volume, delta=expected_volume * 0.02)
+
+    def test_extreme_q2_values(self):
+        """Test shape calculations with extreme q2 values."""
+        # Test very negative q2
+        params_neg = FoSParameters(protons=92, neutrons=144, c=0.5, q2=-0.5, a4=0.0)
+        calculator_neg = FoSShapeCalculator(params_neg)
+        z_neg, rho_neg = calculator_neg.calculate_shape()
+
+        # Verify c = q2 + 1.0 + 1.5 * a4
+        self.assertAlmostEqual(params_neg.c, -0.5 + 1.0 + 0.0, places=6)
+
+        # Test very positive q2
+        params_pos = FoSParameters(protons=92, neutrons=144, c=2.5, q2=1.5, a4=0.0)
+        calculator_pos = FoSShapeCalculator(params_pos)
+        z_pos, rho_pos = calculator_pos.calculate_shape()
+
+        # Verify c = q2 + 1.0 + 1.5 * a4
+        self.assertAlmostEqual(params_pos.c, 1.5 + 1.0 + 0.0, places=6)
+
+        # Both should produce valid shapes
+        self.assertTrue(np.all(rho_neg >= 0))
+        self.assertTrue(np.all(rho_pos >= 0))
 
     def test_empty_arrays(self):
         """Test volume calculation with empty arrays."""
@@ -151,12 +210,13 @@ class TestCalculateVolume(unittest.TestCase):
         """Test that calculated volume is always positive."""
         for c in [0.5, 1.0, 1.5, 2.0]:
             for a4 in [0.0, 0.2, 0.4]:
-                params = FoSParameters(protons=92, neutrons=144, c=c, a4=a4)
+                q2 = c - 1.0 - 1.5 * a4  # Calculate q2 from c and a4
+                params = FoSParameters(protons=92, neutrons=144, c=c, q2=q2, a4=a4)
                 calculator = FoSShapeCalculator(params)
                 z, rho = calculator.calculate_shape()
 
                 volume = calculator.calculate_volume(z, rho)
-                self.assertGreater(volume, 0, f"Volume should be positive for c={c}, a4={a4}")
+                self.assertGreater(volume, 0, f"Volume should be positive for c={c}, q2={q2}, a4={a4}")
 
 
 if __name__ == '__main__':
