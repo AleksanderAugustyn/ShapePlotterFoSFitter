@@ -26,7 +26,7 @@ class FoSParameters:
     a5: float = 0.0  # higher order parameter
     a6: float = 0.0  # higher order parameter
     q2: float = 0.0  # entangled parameter: c = q2 + 1.0 + 1.5 * a4
-    r0: float = 1.16  # Radius constant in fm
+    r0_constant: float = 1.16  # Radius constant in fm
 
     @property
     def nucleons(self) -> int:
@@ -34,18 +34,18 @@ class FoSParameters:
         return self.protons + self.neutrons
 
     @property
-    def R0(self) -> float:
-        """Radius of sphere with same volume."""
-        return self.r0 * (self.nucleons ** (1 / 3))
+    def radius0(self) -> float:
+        """Radius of a sphere with the same volume."""
+        return self.r0_constant * (self.nucleons ** (1 / 3))
 
     @property
     def z0(self) -> float:
         """Half-length of nucleus."""
-        return self.c * self.R0
+        return self.c * self.radius0
 
     @property
     def zsh(self) -> float:
-        """Shift to place center of mass at origin."""
+        """Shift to place the center of mass at origin."""
         # From the paper: z_sh = -3/(4π) z_0 (a_3 - a_5/2 + ...)
         return -3 / (4 * np.pi) * self.z0 * (self.a3 - self.a5 / 2)
 
@@ -115,7 +115,7 @@ class FoSShapeCalculator:
         f_vals = self.f_function(u)
 
         # Calculate ρ² = R₀² c f(u)
-        rho_squared = self.params.R0 ** 2 * self.params.c * f_vals
+        rho_squared = self.params.radius0 ** 2 * self.params.c * f_vals
 
         # Handle negative values (set to 0)
         rho_squared = np.maximum(rho_squared, 0)
@@ -143,7 +143,7 @@ class FoSShapeCalculator:
         original_volume = self.calculate_volume(z_orig, rho_orig)
         sphere_volume = self.calculate_sphere_volume()
 
-        # Calculate scaling factor to conserve volume
+        # Calculate a scaling factor to conserve volume
         # V_scaled = scaling_factor^3 * V_original = V_sphere
         scaling_factor = (sphere_volume / original_volume) ** (1 / 3)
 
@@ -166,8 +166,8 @@ class FoSShapeCalculator:
         return volume
 
     def calculate_sphere_volume(self) -> float:
-        """Calculate the volume of a sphere with same nucleon number."""
-        return (4 / 3) * np.pi * self.params.R0 ** 3
+        """Calculate the volume of a sphere with the same nucleon number."""
+        return (4 / 3) * np.pi * self.params.radius0 ** 3
 
 
 class FoSShapePlotter:
@@ -248,17 +248,17 @@ class FoSShapePlotter:
         calculator = FoSShapeCalculator(self.nuclear_params)
         z, rho, _, _, _ = calculator.calculate_normalized_shape()
 
-        # Create reference sphere
-        R0 = self.nuclear_params.R0
+        # Create a reference sphere
+        r0 = self.nuclear_params.radius0
         theta = np.linspace(0, 2 * np.pi, 200)
-        sphere_x = R0 * np.cos(theta)
-        sphere_y = R0 * np.sin(theta)
+        sphere_x = r0 * np.cos(theta)
+        sphere_y = r0 * np.sin(theta)
 
         # Plot shape and its mirror
         self.line, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape (normalized)', linewidth=2)
         self.line_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
         self.sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray',
-                                              alpha=0.5, label=f'R₀={R0:.2f} fm')
+                                              alpha=0.5, label=f'R₀={r0:.2f} fm')
 
         # Plot center of mass
         self.cm_point, = self.ax_plot.plot(0, 0, 'ro', label='Center of mass', markersize=8)
@@ -281,7 +281,7 @@ class FoSShapePlotter:
         self.slider_n = Slider(ax=ax_n, label='N', valmin=20, valmax=180,
                                valinit=self.initial_n, valstep=1)
 
-        # Create elongation (c) slider
+        # Create an elongation (c) slider
         ax_c = plt.axes((0.25, first_slider_y + 2 * slider_spacing, 0.5, 0.03))
         self.slider_c = Slider(ax=ax_c, label='c', valmin=0.5, valmax=3.0,
                                valinit=self.initial_c, valstep=0.01)
@@ -453,13 +453,13 @@ class FoSShapePlotter:
         self.line.set_data(z, rho)
         self.line_mirror.set_data(z, -rho)
 
-        # Update reference sphere
-        R0 = current_params.R0
+        # Update a reference sphere
+        r0 = current_params.radius0
         theta = np.linspace(0, 2 * np.pi, 200)
-        sphere_x = R0 * np.cos(theta)
-        sphere_y = R0 * np.sin(theta)
+        sphere_x = r0 * np.cos(theta)
+        sphere_y = r0 * np.sin(theta)
         self.sphere_line.set_data(sphere_x, sphere_y)
-        self.sphere_line.set_label(f'R₀={R0:.2f} fm')
+        self.sphere_line.set_label(f'R₀={r0:.2f} fm')
 
         # Update plot limits
         max_val = max(np.max(np.abs(z)), np.max(np.abs(rho))) * 1.2
@@ -482,7 +482,7 @@ class FoSShapePlotter:
         # Add information text
         info_text = (
             f"A = {current_params.nucleons}\n"
-            f"R₀ = {R0:.3f} fm\n"
+            f"R₀ = {r0:.3f} fm\n"
             f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
             f"z_shift = {current_params.zsh:.3f} fm\n"
             f"\nParameter Relations:\n"

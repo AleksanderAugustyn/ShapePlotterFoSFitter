@@ -232,14 +232,14 @@ class TestFoSParameters(unittest.TestCase):
         # Test with r0 = 1.2 for easier calculation if needed, though default is 1.16
         params_default_r0 = FoSParameters(protons=50, neutrons=70) # A = 120
         expected_R0_default = 1.16 * (120 ** (1/3))
-        self.assertAlmostEqual(params_default_r0.R0, expected_R0_default)
+        self.assertAlmostEqual(params_default_r0.radius0, expected_R0_default)
 
-        params_custom_r0 = FoSParameters(protons=50, neutrons=70, r0=1.2) # A = 120
+        params_custom_r0 = FoSParameters(protons=50, neutrons=70, r0_constant=1.2)  # A = 120
         expected_R0_custom = 1.2 * (120 ** (1/3))
-        self.assertAlmostEqual(params_custom_r0.R0, expected_R0_custom)
+        self.assertAlmostEqual(params_custom_r0.radius0, expected_R0_custom)
 
     def test_z0(self):
-        params = FoSParameters(protons=50, neutrons=70, c=1.5, r0=1.2) # A=120
+        params = FoSParameters(protons=50, neutrons=70, c=1.5, r0_constant=1.2)  # A=120
         expected_R0 = 1.2 * (120 ** (1/3))
         expected_z0 = 1.5 * expected_R0
         self.assertAlmostEqual(params.z0, expected_z0)
@@ -395,7 +395,7 @@ class TestCalculateShape(unittest.TestCase):
         # z_sh = 0 for sphere
         params_sphere = FoSParameters(protons=92, neutrons=144, c=1.0) # Ensure all a_i are effectively zero
         calculator_sphere = FoSShapeCalculator(params_sphere)
-        R0 = params_sphere.R0
+        R0 = params_sphere.radius0
         z0 = params_sphere.z0 # Should be R0 for c=1
         self.assertAlmostEqual(z0, R0, msg="z0 should be R0 for a sphere with c=1")
 
@@ -423,7 +423,7 @@ class TestCalculateShape(unittest.TestCase):
         # For a prolate shape (c > 1), z0 > R0.
         params_prolate = FoSParameters(protons=92, neutrons=144, c=1.5) # a_i = 0
         calculator_prolate = FoSShapeCalculator(params_prolate)
-        R0 = params_prolate.R0
+        R0 = params_prolate.radius0
         z0 = params_prolate.z0
         self.assertGreater(z0, R0)
 
@@ -441,7 +441,7 @@ class TestCalculateShape(unittest.TestCase):
         # For an oblate shape (c < 1), z0 < R0.
         params_oblate = FoSParameters(protons=92, neutrons=144, c=0.7) # a_i = 0
         calculator_oblate = FoSShapeCalculator(params_oblate)
-        R0 = params_oblate.R0
+        R0 = params_oblate.radius0
         z0 = params_oblate.z0
         self.assertLess(z0, R0)
 
@@ -545,15 +545,15 @@ class TestCalculateSphereVolume(unittest.TestCase):
         # V_sphere = (4/3) * pi * R0**3
         params = FoSParameters(protons=50, neutrons=70) # A = 120
         calculator = FoSShapeCalculator(params)
-        
-        expected_R0 = params.r0 * (120**(1/3))
+
+        expected_R0 = params.r0_constant * (120 ** (1 / 3))
         expected_volume = (4/3) * np.pi * (expected_R0**3)
         
         calculated_volume = calculator.calculate_sphere_volume()
         self.assertAlmostEqual(calculated_volume, expected_volume, places=6)
 
     def test_calculate_sphere_volume_different_r0(self):
-        params = FoSParameters(protons=50, neutrons=70, r0=1.2) # A = 120
+        params = FoSParameters(protons=50, neutrons=70, r0_constant=1.2)  # A = 120
         calculator = FoSShapeCalculator(params)
         
         expected_R0 = 1.2 * (120**(1/3))
@@ -565,13 +565,13 @@ class TestCalculateSphereVolume(unittest.TestCase):
     def test_calculate_sphere_volume_different_nucleon_number(self):
         params1 = FoSParameters(protons=20, neutrons=20) # A = 40
         calculator1 = FoSShapeCalculator(params1)
-        expected_R0_1 = params1.r0 * (40**(1/3))
+        expected_R0_1 = params1.r0_constant * (40 ** (1 / 3))
         expected_volume_1 = (4/3) * np.pi * (expected_R0_1**3)
         self.assertAlmostEqual(calculator1.calculate_sphere_volume(), expected_volume_1, places=6)
 
         params2 = FoSParameters(protons=100, neutrons=150) # A = 250
         calculator2 = FoSShapeCalculator(params2)
-        expected_R0_2 = params2.r0 * (250**(1/3))
+        expected_R0_2 = params2.r0_constant * (250 ** (1 / 3))
         expected_volume_2 = (4/3) * np.pi * (expected_R0_2**3)
         self.assertAlmostEqual(calculator2.calculate_sphere_volume(), expected_volume_2, places=6)
 
