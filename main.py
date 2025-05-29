@@ -87,26 +87,33 @@ class FoSShapeCalculator:
 
         return f
 
-    def calculate_shape(self, n_points: int = 1000) -> Tuple[np.ndarray, np.ndarray]:
+    def calculate_shape(self, n_points: int = 1000, use_theoretical_shift: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the shape coordinates in (z, ρ) space.
 
         For axially symmetric case (η=0):
         ρ²(z) = R₀² c f((z - z_sh)/z₀)
 
+        Args:
+            n_points: Number of points to calculate
+            use_theoretical_shift: If True, use theoretical z_shift. If False, shift to place CM at origin.
+
         Returns:
             z: axial coordinates
             rho: radial coordinates
         """
-        # Calculate bounds
-        z_min = -self.params.z0 + self.params.zsh
-        z_max = self.params.z0 + self.params.zsh
-
-        # Create z array
-        z = np.linspace(z_min, z_max, n_points)
-
-        # Calculate u = (z - z_sh) / z_0
-        u = (z - self.params.zsh) / self.params.z0
+        if use_theoretical_shift:
+            # Use theoretical shift (original behavior)
+            z_min = -self.params.z0 + self.params.zsh
+            z_max = self.params.z0 + self.params.zsh
+            z = np.linspace(z_min, z_max, n_points)
+            u = (z - self.params.zsh) / self.params.z0
+        else:
+            # Calculate shape without shift first
+            z_min = -self.params.z0
+            z_max = self.params.z0
+            z = np.linspace(z_min, z_max, n_points)
+            u = z / self.params.z0
 
         # Ensure u is in [-1, 1]
         u = np.clip(u, -1, 1)
@@ -123,6 +130,11 @@ class FoSShapeCalculator:
         # Calculate ρ
         rho = np.sqrt(rho_squared)
 
+        # If not using theoretical shift, calculate actual CM and shift
+        if not use_theoretical_shift:
+            z_cm = self.calculate_center_of_mass(z, rho)
+            z = z - z_cm  # Shift to place CM at origin
+
         return z, rho
 
     def calculate_normalized_shape(self, n_points: int = 1000) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
@@ -136,8 +148,8 @@ class FoSShapeCalculator:
             sphere_volume: reference sphere volume
             scaling_factor: the applied scaling factor
         """
-        # Get original shape
-        z_orig, rho_orig = self.calculate_shape(n_points)
+        # Get original shape (with CM at origin)
+        z_orig, rho_orig = self.calculate_shape(n_points, use_theoretical_shift=False)
 
         # Calculate volumes
         original_volume = self.calculate_volume(z_orig, rho_orig)
@@ -169,6 +181,31 @@ class FoSShapeCalculator:
         """Calculate the volume of a sphere with the same nucleon number."""
         return (4 / 3) * np.pi * self.params.radius0 ** 3
 
+    @staticmethod
+    def calculate_center_of_mass(z: np.ndarray, rho: np.ndarray) -> float:
+        """
+        Calculate the center of mass position along the z-axis.
+        z_cm = ∫ z ρ²(z) dz / ∫ ρ²(z) dz
+        """
+        if len(z) < 2:
+            return 0.0
+
+        # Use trapezoidal rule for both integrals
+        dz = np.diff(z)
+        z_mid = (z[1:] + z[:-1]) / 2
+        rho_mid = (rho[1:] + rho[:-1]) / 2
+
+        # Numerator: ∫ z ρ²(z) dz
+        numerator = np.sum(z_mid * rho_mid ** 2 * dz)
+
+        # Denominator: ∫ ρ²(z) dz
+        denominator = np.sum(rho_mid ** 2 * dz)
+
+        if denominator == 0:
+            return 0.0
+
+        return numerator / denominator
+
 
 class FoSShapePlotter:
     """Class for plotting Fourier-over-Spheroid nuclear shapes."""
@@ -194,6 +231,8 @@ class FoSShapePlotter:
         self.line_mirror = None
         self.sphere_line = None
         self.cm_point = None
+        self.cm_calculated = None
+        self.cm_theoretical = None
 
         # Sliders
         self.slider_z = None
@@ -230,6 +269,7 @@ class FoSShapePlotter:
         self.setup_controls()
         self.setup_event_handlers()
 
+
     def create_figure(self):
         """Create and set up the matplotlib figure."""
         self.fig = plt.figure(figsize=(12, 8))
@@ -260,8 +300,14 @@ class FoSShapePlotter:
         self.sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray',
                                               alpha=0.5, label=f'R₀={r0:.2f} fm')
 
-        # Plot center of mass
-        self.cm_point, = self.ax_plot.plot(0, 0, 'ro', label='Center of mass', markersize=8)
+        # Plot expected center of mass (at origin)
+        self.cm_point, = self.ax_plot.plot(0, 0, 'ro', label='Expected CM (origin)', markersize=8)
+
+        # Plot calculated center of mass
+        self.cm_calculated, = self.ax_plot.plot(0, 0, 'gx', label='Calculated CM', markersize=10, markeredgewidth=2)
+
+        # Plot theoretical shift CM
+        self.cm_theoretical, = self.ax_plot.plot(0, 0, 'b^', label='CM with theoretical shift', markersize=8)
 
         self.ax_plot.legend(loc='upper right')
 
@@ -449,9 +495,26 @@ class FoSShapePlotter:
         calculator = FoSShapeCalculator(current_params)
         z, rho, original_volume, sphere_volume, scaling_factor = calculator.calculate_normalized_shape()
 
+        # Calculate the center of mass
+        z_cm = calculator.calculate_center_of_mass(z, rho)
+
+        # Also calculate center of mass for the unnormalized shape
+        z_unnorm, rho_unnorm = calculator.calculate_shape()
+        z_cm_unnorm = calculator.calculate_center_of_mass(z_unnorm, rho_unnorm)
+
+        # Calculate shape with theoretical shift for comparison
+        z_theoretical, rho_theoretical = calculator.calculate_shape(use_theoretical_shift=True)
+        z_cm_theoretical = calculator.calculate_center_of_mass(z_theoretical, rho_theoretical)
+
         # Update shape lines
         self.line.set_data(z, rho)
         self.line_mirror.set_data(z, -rho)
+
+        # Update calculated center of mass position
+        self.cm_calculated.set_data([z_cm], [0])
+
+        # Update theoretical CM position
+        self.cm_theoretical.set_data([z_cm_theoretical], [0])
 
         # Update a reference sphere
         r0 = current_params.radius0
@@ -484,7 +547,14 @@ class FoSShapePlotter:
             f"A = {current_params.nucleons}\n"
             f"R₀ = {r0:.3f} fm\n"
             f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
-            f"z_shift = {current_params.zsh:.3f} fm\n"
+            f"\nShift Information:\n"
+            f"Theoretical z_shift = {current_params.zsh:.3f} fm\n"
+            f"CM with theoretical shift: {z_cm_theoretical:.4f} fm\n"
+            f"Actual shift applied: {-z_cm_theoretical:.4f} fm\n"
+            f"\nCenter of Mass:\n"
+            f"Calculated CM (normalized): {z_cm:.4f} fm\n"
+            f"Calculated CM (unnormalized): {z_cm_unnorm:.4f} fm\n"
+            f"CM offset from origin: {abs(z_cm):.6f} fm\n"
             f"\nParameter Relations:\n"
             f"c = q₂ + 1.0 + 1.5a₄\n"
             f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c:.3f}\n"
