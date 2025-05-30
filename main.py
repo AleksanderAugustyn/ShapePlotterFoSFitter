@@ -20,7 +20,7 @@ class FoSParameters:
     """Class to store Fourier-over-Spheroid shape parameters."""
     protons: int
     neutrons: int
-    c: float = 1.0  # elongation
+    c_elongation: float = 1.0  # elongation
     a3: float = 0.0  # reflection asymmetry
     a4: float = 0.0  # neck parameter
     a5: float = 0.0  # higher order parameter
@@ -41,7 +41,7 @@ class FoSParameters:
     @property
     def z0(self) -> float:
         """Half-length of nucleus."""
-        return self.c * self.radius0
+        return self.c_elongation * self.radius0
 
     @property
     def zsh(self) -> float:
@@ -122,7 +122,7 @@ class FoSShapeCalculator:
         f_vals = self.f_function(u)
 
         # Calculate ρ² = R₀² c f(u)
-        rho_squared = self.params.radius0 ** 2 * self.params.c * f_vals
+        rho_squared = self.params.radius0 ** 2 * self.params.c_elongation * f_vals
 
         # Handle negative values (set to 0)
         rho_squared = np.maximum(rho_squared, 0)
@@ -256,7 +256,7 @@ class FoSShapePlotter:
         self.nuclear_params = FoSParameters(
             protons=self.initial_z,
             neutrons=self.initial_n,
-            c=self.initial_c,
+            c_elongation=self.initial_c,
             q2=self.initial_q2,
             a3=self.initial_a3,
             a4=self.initial_a4,
@@ -483,7 +483,7 @@ class FoSShapePlotter:
         current_params = FoSParameters(
             protons=int(self.slider_z.val),
             neutrons=int(self.slider_n.val),
-            c=self.slider_c.val,
+            c_elongation=self.slider_c.val,
             q2=self.slider_q2.val,
             a3=self.slider_a3.val,
             a4=self.slider_a4.val,
@@ -557,7 +557,7 @@ class FoSShapePlotter:
             f"CM offset from origin: {abs(z_cm):.6f} fm\n"
             f"\nParameter Relations:\n"
             f"c = q₂ + 1.0 + 1.5a₄\n"
-            f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c:.3f}\n"
+            f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference sphere volume: {sphere_volume:.1f} fm³\n"
             f"Original FoS volume: {original_volume:.1f} fm³\n"

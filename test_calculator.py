@@ -19,7 +19,7 @@ class TestCalculateVolume(unittest.TestCase):
 
     def test_sphere_volume(self):
         """Test volume calculation for a perfect sphere (c=1, all a_i=0)."""
-        sphere_params = FoSParameters(protons=92, neutrons=144, c=1.0)
+        sphere_params = FoSParameters(protons=92, neutrons=144, c_elongation=1.0)
         calculator = FoSShapeCalculator(sphere_params)
         z, rho = calculator.calculate_shape()
 
@@ -31,7 +31,7 @@ class TestCalculateVolume(unittest.TestCase):
 
     def test_prolate_volume_conservation(self):
         """Test that prolate shape conserves volume."""
-        prolate_params = FoSParameters(protons=92, neutrons=144, c=1.5)
+        prolate_params = FoSParameters(protons=92, neutrons=144, c_elongation=1.5)
         calculator = FoSShapeCalculator(prolate_params)
         z, rho = calculator.calculate_shape()
 
@@ -43,7 +43,7 @@ class TestCalculateVolume(unittest.TestCase):
 
     def test_oblate_volume_conservation(self):
         """Test that oblate shape conserves volume."""
-        oblate_params = FoSParameters(protons=92, neutrons=144, c=0.7)
+        oblate_params = FoSParameters(protons=92, neutrons=144, c_elongation=0.7)
         calculator = FoSShapeCalculator(oblate_params)
         z, rho = calculator.calculate_shape()
 
@@ -55,7 +55,7 @@ class TestCalculateVolume(unittest.TestCase):
 
     def test_asymmetric_shape_volume(self):
         """Test volume calculation for asymmetric shapes."""
-        asym_params = FoSParameters(protons=92, neutrons=144, c=1.2, a3=0.2)
+        asym_params = FoSParameters(protons=92, neutrons=144, c_elongation=1.2, a3=0.2)
         calculator = FoSShapeCalculator(asym_params)
         z, rho = calculator.calculate_shape()
 
@@ -67,7 +67,7 @@ class TestCalculateVolume(unittest.TestCase):
 
     def test_neck_parameter_volume(self):
         """Test volume calculation with neck parameter."""
-        neck_params = FoSParameters(protons=92, neutrons=144, c=1.5, a4=0.3)
+        neck_params = FoSParameters(protons=92, neutrons=144, c_elongation=1.5, a4=0.3)
         calculator = FoSShapeCalculator(neck_params)
         z, rho = calculator.calculate_shape()
 
@@ -84,23 +84,23 @@ class TestCalculateVolume(unittest.TestCase):
         a4_val = 0.2  # Renamed to avoid conflict with instance variable
         expected_c = q2_val + 1.0 + 1.5 * a4_val
 
-        params = FoSParameters(protons=92, neutrons=144, c=expected_c, q2=q2_val, a4=a4_val)
-        self.assertAlmostEqual(params.c, expected_c, places=6)
+        params = FoSParameters(protons=92, neutrons=144, c_elongation=expected_c, q2=q2_val, a4=a4_val)
+        self.assertAlmostEqual(params.c_elongation, expected_c, places=6)
 
         # Test case 2: q2 = -0.3, a4 = 0.4
         q2_val = -0.3 # Renamed
         a4_val = 0.4  # Renamed
         expected_c = q2_val + 1.0 + 1.5 * a4_val
 
-        params = FoSParameters(protons=92, neutrons=144, c=expected_c, q2=q2_val, a4=a4_val)
-        self.assertAlmostEqual(params.c, expected_c, places=6)
+        params = FoSParameters(protons=92, neutrons=144, c_elongation=expected_c, q2=q2_val, a4=a4_val)
+        self.assertAlmostEqual(params.c_elongation, expected_c, places=6)
 
     def test_q2_volume_conservation(self):
         """Test volume conservation with different q2 values."""
         for q2_val in [-0.5, 0.0, 0.5, 1.0]: # Renamed
             for a4_val in [0.0, 0.2, 0.4]: # Renamed
                 c_val = q2_val + 1.0 + 1.5 * a4_val # Renamed
-                params = FoSParameters(protons=92, neutrons=144, c=c_val, q2=q2_val, a4=a4_val)
+                params = FoSParameters(protons=92, neutrons=144, c_elongation=c_val, q2=q2_val, a4=a4_val)
                 calculator = FoSShapeCalculator(params)
                 z, rho = calculator.calculate_shape()
 
@@ -117,7 +117,7 @@ class TestCalculateVolume(unittest.TestCase):
     def test_multiple_parameters_volume(self):
         """Test volume calculation with multiple non-zero parameters."""
         complex_params = FoSParameters(
-            protons=92, neutrons=144, c=1.3, q2=0.1, a3=0.1, a4=0.2, a5=0.05, a6=0.02
+            protons=92, neutrons=144, c_elongation=1.3, q2=0.1, a3=0.1, a4=0.2, a5=0.05, a6=0.02
         )
         calculator = FoSShapeCalculator(complex_params)
         z, rho = calculator.calculate_shape()
@@ -131,7 +131,7 @@ class TestCalculateVolume(unittest.TestCase):
     def test_different_nucleus_sizes(self):
         """Test volume calculation for different nucleus sizes."""
         # Light nucleus
-        light_params = FoSParameters(protons=26, neutrons=30, c=1.2, q2=0.2)
+        light_params = FoSParameters(protons=26, neutrons=30, c_elongation=1.2, q2=0.2)
         light_calculator = FoSShapeCalculator(light_params)
         z, rho = light_calculator.calculate_shape()
 
@@ -141,7 +141,7 @@ class TestCalculateVolume(unittest.TestCase):
         self.assertAlmostEqual(calculated_volume, expected_volume, delta=expected_volume * 0.02)
 
         # Heavy nucleus
-        heavy_params = FoSParameters(protons=110, neutrons=170, c=1.1, q2=0.1)
+        heavy_params = FoSParameters(protons=110, neutrons=170, c_elongation=1.1, q2=0.1)
         heavy_calculator = FoSShapeCalculator(heavy_params)
         z, rho = heavy_calculator.calculate_shape()
 
@@ -153,20 +153,20 @@ class TestCalculateVolume(unittest.TestCase):
     def test_extreme_q2_values(self):
         """Test shape calculations with extreme q2 values."""
         # Test very negative q2
-        params_neg = FoSParameters(protons=92, neutrons=144, c=0.5, q2=-0.5, a4=0.0)
+        params_neg = FoSParameters(protons=92, neutrons=144, c_elongation=0.5, q2=-0.5, a4=0.0)
         calculator_neg = FoSShapeCalculator(params_neg)
         z_neg, rho_neg = calculator_neg.calculate_shape()
 
         # Verify c = q2 + 1.0 + 1.5 * a4
-        self.assertAlmostEqual(params_neg.c, -0.5 + 1.0 + 0.0, places=6)
+        self.assertAlmostEqual(params_neg.c_elongation, -0.5 + 1.0 + 0.0, places=6)
 
         # Test very positive q2
-        params_pos = FoSParameters(protons=92, neutrons=144, c=2.5, q2=1.5, a4=0.0)
+        params_pos = FoSParameters(protons=92, neutrons=144, c_elongation=2.5, q2=1.5, a4=0.0)
         calculator_pos = FoSShapeCalculator(params_pos)
         z_pos, rho_pos = calculator_pos.calculate_shape()
 
         # Verify c = q2 + 1.0 + 1.5 * a4
-        self.assertAlmostEqual(params_pos.c, 1.5 + 1.0 + 0.0, places=6)
+        self.assertAlmostEqual(params_pos.c_elongation, 1.5 + 1.0 + 0.0, places=6)
 
         # Both should produce valid shapes
         self.assertTrue(np.all(rho_neg >= 0))
@@ -215,7 +215,7 @@ class TestCalculateVolume(unittest.TestCase):
         for c_val in [0.5, 1.0, 1.5, 2.0]: # Renamed
             for a4_val in [0.0, 0.2, 0.4]: # Renamed
                 q2_val = c_val - 1.0 - 1.5 * a4_val  # Calculate q2 from c and a4
-                params = FoSParameters(protons=92, neutrons=144, c=c_val, q2=q2_val, a4=a4_val)
+                params = FoSParameters(protons=92, neutrons=144, c_elongation=c_val, q2=q2_val, a4=a4_val)
                 calculator = FoSShapeCalculator(params)
                 z, rho = calculator.calculate_shape()
 
@@ -239,7 +239,7 @@ class TestFoSParameters(unittest.TestCase):
         self.assertAlmostEqual(params_custom_r0.radius0, expected_R0_custom)
 
     def test_z0(self):
-        params = FoSParameters(protons=50, neutrons=70, c=1.5, r0_constant=1.2)  # A=120
+        params = FoSParameters(protons=50, neutrons=70, c_elongation=1.5, r0_constant=1.2)  # A=120
         expected_R0 = 1.2 * (120 ** (1/3))
         expected_z0 = 1.5 * expected_R0
         self.assertAlmostEqual(params.z0, expected_z0)
@@ -247,21 +247,21 @@ class TestFoSParameters(unittest.TestCase):
     def test_zsh(self):
         # z_sh = -3/(4π) z_0 (a_3 - a_5/2)
         # Case 1: a3 and a5 are zero
-        params1 = FoSParameters(protons=92, neutrons=144, c=1.2, a3=0.0, a5=0.0)
+        params1 = FoSParameters(protons=92, neutrons=144, c_elongation=1.2, a3=0.0, a5=0.0)
         self.assertAlmostEqual(params1.zsh, 0.0)
 
         # Case 2: Non-zero a3, zero a5
-        params2 = FoSParameters(protons=92, neutrons=144, c=1.2, a3=0.2, a5=0.0)
+        params2 = FoSParameters(protons=92, neutrons=144, c_elongation=1.2, a3=0.2, a5=0.0)
         expected_zsh2 = -3 / (4 * np.pi) * params2.z0 * 0.2
         self.assertAlmostEqual(params2.zsh, expected_zsh2)
 
         # Case 3: Zero a3, non-zero a5
-        params3 = FoSParameters(protons=92, neutrons=144, c=1.2, a3=0.0, a5=0.1)
+        params3 = FoSParameters(protons=92, neutrons=144, c_elongation=1.2, a3=0.0, a5=0.1)
         expected_zsh3 = -3 / (4 * np.pi) * params3.z0 * (0.0 - 0.1 / 2)
         self.assertAlmostEqual(params3.zsh, expected_zsh3)
         
         # Case 4: Non-zero a3 and a5
-        params4 = FoSParameters(protons=92, neutrons=144, c=1.2, a3=0.2, a5=0.1)
+        params4 = FoSParameters(protons=92, neutrons=144, c_elongation=1.2, a3=0.2, a5=0.1)
         expected_zsh4 = -3 / (4 * np.pi) * params4.z0 * (0.2 - 0.1 / 2)
         self.assertAlmostEqual(params4.zsh, expected_zsh4)
 
@@ -296,7 +296,7 @@ class TestFFunction(unittest.TestCase):
     def test_f_function_basic_sphere(self):
         # For a sphere, a2=a3=a4=a5=a6=0. So f(u) = 1 - u^2
         # params are by default spherical (all a_i = 0, so a2=0)
-        params_sphere = FoSParameters(protons=92, neutrons=144, c=1.0) # Ensure all a_i are zero
+        params_sphere = FoSParameters(protons=92, neutrons=144, c_elongation=1.0)  # Ensure all a_i are zero
         calculator_sphere = FoSShapeCalculator(params_sphere)
         
         u = np.array([-1.0, -0.5, 0.0, 0.5, 1.0])
@@ -307,7 +307,7 @@ class TestFFunction(unittest.TestCase):
     def test_f_function_with_a2(self):
         # f(u) = 1 - u² - a2*cos(π/2 u)
         # For this test, let a4=0.3 so a2 = 0.3/3 = 0.1. a3,a5,a6=0.
-        params = FoSParameters(protons=92, neutrons=144, c=1.0, a4=0.3) # a2 becomes 0.1
+        params = FoSParameters(protons=92, neutrons=144, c_elongation=1.0, a4=0.3)  # a2 becomes 0.1
         calculator = FoSShapeCalculator(params)
         
         u_val = 0.5
@@ -319,7 +319,7 @@ class TestFFunction(unittest.TestCase):
 
     def test_f_function_with_a3(self):
         # f(u) = 1 - u² - a3*sin(πu) (assuming a2,a4,a5,a6=0)
-        params = FoSParameters(protons=92, neutrons=144, c=1.0, a3=0.2) # a2,a4,a5,a6=0
+        params = FoSParameters(protons=92, neutrons=144, c_elongation=1.0, a3=0.2)  # a2,a4,a5,a6=0
         calculator = FoSShapeCalculator(params)
 
         u_val = 0.5
@@ -329,7 +329,7 @@ class TestFFunction(unittest.TestCase):
         self.assertAlmostEqual(calculated_f[0], expected_f, places=6)
 
     def test_f_function_with_all_params(self):
-        params = FoSParameters(protons=92, neutrons=144, c=1.0, 
+        params = FoSParameters(protons=92, neutrons=144, c_elongation=1.0,
                                a3=0.1, a4=0.15, a5=0.05, a6=0.075)
         # This implies a2 = a4/3 - a6/5 = 0.15/3 - 0.075/5 = 0.05 - 0.015 = 0.035
         calculator = FoSShapeCalculator(params)
@@ -361,7 +361,7 @@ class TestFFunction(unittest.TestCase):
         # cos(-5π/2)=0
         # So f(-1) = 1 - (-1)^2 - 0 = 0, regardless of a_i values.
 
-        params_complex = FoSParameters(protons=92, neutrons=144, c=1.0, 
+        params_complex = FoSParameters(protons=92, neutrons=144, c_elongation=1.0,
                                        a3=0.1, a4=0.15, a5=0.05, a6=0.075)
         calculator_complex = FoSShapeCalculator(params_complex)
         
@@ -378,11 +378,11 @@ class TestCalculateShape(unittest.TestCase):
     def test_rho_non_negative(self):
         # Test with various parameters to ensure rho is never negative
         param_sets = [
-            FoSParameters(protons=92, neutrons=144, c=1.0), # Sphere
-            FoSParameters(protons=92, neutrons=144, c=1.5, a3=0.2), # Prolate, asymmetric
-            FoSParameters(protons=92, neutrons=144, c=0.7, a4=-0.2), # Oblate, diamond-like
-            FoSParameters(protons=92, neutrons=144, c=2.0, a4=0.5), # Two-center like
-            FoSParameters(protons=92, neutrons=144, c=1.2, q2=0.0, a3=0.1, a4=0.1, a5=-0.1, a6=0.05) # Complex
+            FoSParameters(protons=92, neutrons=144, c_elongation=1.0),  # Sphere
+            FoSParameters(protons=92, neutrons=144, c_elongation=1.5, a3=0.2),  # Prolate, asymmetric
+            FoSParameters(protons=92, neutrons=144, c_elongation=0.7, a4=-0.2),  # Oblate, diamond-like
+            FoSParameters(protons=92, neutrons=144, c_elongation=2.0, a4=0.5),  # Two-center like
+            FoSParameters(protons=92, neutrons=144, c_elongation=1.2, q2=0.0, a3=0.1, a4=0.1, a5=-0.1, a6=0.05)  # Complex
         ]
         for params in param_sets:
             calculator = FoSShapeCalculator(params)
@@ -393,7 +393,7 @@ class TestCalculateShape(unittest.TestCase):
         # For a sphere (c=1, all a_i=0), rho^2(z) = R0^2 * c * (1 - u^2) = R0^2 * (1 - (z/R0)^2)
         # So, rho(z) = sqrt(R0^2 - z^2)
         # z_sh = 0 for sphere
-        params_sphere = FoSParameters(protons=92, neutrons=144, c=1.0) # Ensure all a_i are effectively zero
+        params_sphere = FoSParameters(protons=92, neutrons=144, c_elongation=1.0)  # Ensure all a_i are effectively zero
         calculator_sphere = FoSShapeCalculator(params_sphere)
         R0 = params_sphere.radius0
         z0 = params_sphere.z0 # Should be R0 for c=1
@@ -421,15 +421,15 @@ class TestCalculateShape(unittest.TestCase):
 
     def test_prolate_shape_qualitative(self):
         # For a prolate shape (c > 1), z0 > R0.
-        params_prolate = FoSParameters(protons=92, neutrons=144, c=1.5) # a_i = 0
+        params_prolate = FoSParameters(protons=92, neutrons=144, c_elongation=1.5)  # a_i = 0
         calculator_prolate = FoSShapeCalculator(params_prolate)
         R0 = params_prolate.radius0
         z0 = params_prolate.z0
         self.assertGreater(z0, R0)
 
         z_coords, rho_coords = calculator_prolate.calculate_shape(n_points=100)
-        
-        expected_max_rho = R0 * np.sqrt(params_prolate.c)
+
+        expected_max_rho = R0 * np.sqrt(params_prolate.c_elongation)
         closest_to_zero_idx = np.argmin(np.abs(z_coords - params_prolate.zsh)) # zsh is 0 here
         self.assertAlmostEqual(rho_coords[closest_to_zero_idx], expected_max_rho, delta=expected_max_rho*0.01,
                                msg="Max rho for prolate spheroid incorrect.")
@@ -439,15 +439,15 @@ class TestCalculateShape(unittest.TestCase):
 
     def test_oblate_shape_qualitative(self):
         # For an oblate shape (c < 1), z0 < R0.
-        params_oblate = FoSParameters(protons=92, neutrons=144, c=0.7) # a_i = 0
+        params_oblate = FoSParameters(protons=92, neutrons=144, c_elongation=0.7)  # a_i = 0
         calculator_oblate = FoSShapeCalculator(params_oblate)
         R0 = params_oblate.radius0
         z0 = params_oblate.z0
         self.assertLess(z0, R0)
 
         z_coords, rho_coords = calculator_oblate.calculate_shape(n_points=100)
-        
-        expected_max_rho = R0 * np.sqrt(params_oblate.c)
+
+        expected_max_rho = R0 * np.sqrt(params_oblate.c_elongation)
         closest_to_zero_idx = np.argmin(np.abs(z_coords - params_oblate.zsh)) # zsh is 0 here
         self.assertAlmostEqual(rho_coords[closest_to_zero_idx], expected_max_rho, delta=expected_max_rho*0.01,
                                msg="Max rho for oblate spheroid incorrect.")
@@ -460,10 +460,10 @@ class TestCalculateNormalizedShape(unittest.TestCase):
     def setUp(self):
         # Using a default set of parameters that are not a perfect sphere initially
         # to make volume normalization meaningful.
-        self.params_deformed = FoSParameters(protons=92, neutrons=144, c=1.5, a3=0.1, a4=0.05) # A=236
+        self.params_deformed = FoSParameters(protons=92, neutrons=144, c_elongation=1.5, a3=0.1, a4=0.05)  # A=236
         self.calculator_deformed = FoSShapeCalculator(self.params_deformed)
 
-        self.params_sphere = FoSParameters(protons=92, neutrons=144, c=1.0) # A=236, perfect sphere
+        self.params_sphere = FoSParameters(protons=92, neutrons=144, c_elongation=1.0)  # A=236, perfect sphere
         self.calculator_sphere = FoSShapeCalculator(self.params_sphere)
 
     def test_normalization_reports(self):
