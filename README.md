@@ -13,9 +13,9 @@ You can install them using pip:
 pip install numpy matplotlib
 ```
 
-Then, execute the `main.py` script:
+Then, execute the `ShapePlotterFoS.py` script:
 ```bash
-python main.py
+python ShapePlotterFoS.py
 ```
 
 This will open an interactive window where you can adjust the parameters.
