@@ -87,7 +87,7 @@ class FoSShapeCalculator:
 
         return f
 
-    def calculate_shape(self, n_points: int = 1000, use_theoretical_shift: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+    def calculate_shape(self, n_points: int = 2000, use_theoretical_shift: bool = False) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the shape coordinates in (z, ρ) space.
 
