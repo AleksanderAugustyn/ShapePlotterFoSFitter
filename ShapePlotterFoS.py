@@ -240,9 +240,6 @@ class FoSShapePlotter:
         # Plot expected center of mass (at origin)
         self.cm_point, = self.ax_plot.plot(0, 0, 'ro', label='Expected CM (origin)', markersize=8)
 
-        # Plot calculated center of mass
-        self.cm_calculated, = self.ax_plot.plot(0, 0, 'gx', label='Calculated CM', markersize=10, markeredgewidth=2)
-
         # Plot theoretical shift CM
         self.cm_theoretical, = self.ax_plot.plot(0, 0, 'b^', label='CM with theoretical shift', markersize=8)
 
