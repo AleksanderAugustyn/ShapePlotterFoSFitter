@@ -107,8 +107,8 @@ class FoSShapeCalculator:
             rho: radial coordinates
         """
         # Calculate shape without a shift first
-        z_min = -self.params.z0
-        z_max = self.params.z0
+        z_min = -self.params.z0 + self.params.z_sh
+        z_max = self.params.z0 + self.params.z_sh
         z = np.linspace(z_min, z_max, n_points)
 
         # Apply the shift to z
