@@ -258,8 +258,7 @@ class FoSShapePlotter:
         # Plot shape and its mirror
         self.line, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape (normalized)', linewidth=2)
         self.line_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
-        self.sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray',
-                                              alpha=0.5, label=f'R₀={r0:.2f} fm')
+        self.sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray', alpha=0.5, label=f'R₀={r0:.2f} fm')
 
         # Plot expected center of mass (at origin)
         self.cm_point, = self.ax_plot.plot(0, 0, 'ro', label='Expected CM (origin)', markersize=8)
@@ -280,43 +279,35 @@ class FoSShapePlotter:
 
         # Create proton (Z) slider
         ax_z = plt.axes((0.25, first_slider_y, 0.5, 0.03))
-        self.slider_z = Slider(ax=ax_z, label='Z', valmin=20, valmax=120,
-                               valinit=self.initial_z, valstep=1)
+        self.slider_z = Slider(ax=ax_z, label='Z', valmin=20, valmax=120, valinit=self.initial_z, valstep=1)
 
         # Create neutron (N) slider
         ax_n = plt.axes((0.25, first_slider_y + slider_spacing, 0.5, 0.03))
-        self.slider_n = Slider(ax=ax_n, label='N', valmin=20, valmax=180,
-                               valinit=self.initial_n, valstep=1)
+        self.slider_n = Slider(ax=ax_n, label='N', valmin=20, valmax=180, valinit=self.initial_n, valstep=1)
 
         # Create an elongation (c) slider
         ax_c = plt.axes((0.25, first_slider_y + 2 * slider_spacing, 0.5, 0.03))
-        self.slider_c = Slider(ax=ax_c, label='c', valmin=0.5, valmax=3.0,
-                               valinit=self.initial_c, valstep=0.01)
+        self.slider_c = Slider(ax=ax_c, label='c', valmin=0.5, valmax=3.0, valinit=self.initial_c, valstep=0.01)
 
         # Create q2 slider (entangled with c and a4)
         ax_q2 = plt.axes((0.25, first_slider_y + 3 * slider_spacing, 0.5, 0.03))
-        self.slider_q2 = Slider(ax=ax_q2, label='q₂', valmin=-1.0, valmax=2.0,
-                                valinit=self.initial_q2, valstep=0.01)
+        self.slider_q2 = Slider(ax=ax_q2, label='q₂', valmin=-1.0, valmax=2.0, valinit=self.initial_q2, valstep=0.01)
 
         # Create a3 slider (reflection asymmetry)
         ax_a3 = plt.axes((0.25, first_slider_y + 4 * slider_spacing, 0.5, 0.03))
-        self.slider_a3 = Slider(ax=ax_a3, label='a₃', valmin=-0.5, valmax=0.5,
-                                valinit=self.initial_a3, valstep=0.01)
+        self.slider_a3 = Slider(ax=ax_a3, label='a₃', valmin=-0.5, valmax=0.5, valinit=self.initial_a3, valstep=0.01)
 
         # Create a4 slider (neck parameter)
         ax_a4 = plt.axes((0.25, first_slider_y + 5 * slider_spacing, 0.5, 0.03))
-        self.slider_a4 = Slider(ax=ax_a4, label='a₄', valmin=-0.5, valmax=0.75,
-                                valinit=self.initial_a4, valstep=0.01)
+        self.slider_a4 = Slider(ax=ax_a4, label='a₄', valmin=-0.5, valmax=0.75, valinit=self.initial_a4, valstep=0.01)
 
         # Create a5 slider
         ax_a5 = plt.axes((0.25, first_slider_y + 6 * slider_spacing, 0.5, 0.03))
-        self.slider_a5 = Slider(ax=ax_a5, label='a₅', valmin=-0.3, valmax=0.3,
-                                valinit=self.initial_a5, valstep=0.01)
+        self.slider_a5 = Slider(ax=ax_a5, label='a₅', valmin=-0.3, valmax=0.3, valinit=self.initial_a5, valstep=0.01)
 
         # Create a6 slider
         ax_a6 = plt.axes((0.25, first_slider_y + 7 * slider_spacing, 0.5, 0.03))
-        self.slider_a6 = Slider(ax=ax_a6, label='a₆', valmin=-0.3, valmax=0.3,
-                                valinit=self.initial_a6, valstep=0.01)
+        self.slider_a6 = Slider(ax=ax_a6, label='a₆', valmin=-0.3, valmax=0.3, valinit=self.initial_a6, valstep=0.01)
 
         # Style font sizes for all sliders
         for slider in [self.slider_z, self.slider_n, self.slider_c, self.slider_q2,
