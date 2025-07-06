@@ -54,6 +54,11 @@ class FoSParameters:
         """Volume conservation constraint: a2 = a4/3 - a6/5 + ..."""
         return self.a4 / 3 - self.a6 / 5
 
+    @property
+    def sphere_volume(self) -> float:
+        """Volume of a sphere with the same nucleon number."""
+        return (4 / 3) * np.pi * self.radius0 ** 3
+
 
 class FoSShapeCalculator:
     """Class for calculating Fourier-over-Spheroid shapes."""
@@ -109,7 +114,7 @@ class FoSShapeCalculator:
             z = np.linspace(z_min, z_max, n_points)
             u = (z - self.params.zsh) / self.params.z0
         else:
-            # Calculate shape without shift first
+            # Calculate shape without a shift first
             z_min = -self.params.z0
             z_max = self.params.z0
             z = np.linspace(z_min, z_max, n_points)
@@ -148,12 +153,12 @@ class FoSShapeCalculator:
             sphere_volume: reference sphere volume
             scaling_factor: the applied scaling factor
         """
-        # Get original shape (with CM at origin)
+        # Get the original shape (with CM at origin)
         z_orig, rho_orig = self.calculate_shape(n_points, use_theoretical_shift=False)
 
         # Calculate volumes
         original_volume = self.calculate_volume(z_orig, rho_orig)
-        sphere_volume = self.calculate_sphere_volume()
+        sphere_volume = self.params.sphere_volume
 
         # Calculate a scaling factor to conserve volume
         # V_scaled = scaling_factor^3 * V_original = V_sphere
@@ -176,10 +181,6 @@ class FoSShapeCalculator:
         rho_mid = (rho[1:] + rho[:-1]) / 2
         volume = np.pi * np.sum(rho_mid ** 2 * dz)
         return volume
-
-    def calculate_sphere_volume(self) -> float:
-        """Calculate the volume of a sphere with the same nucleon number."""
-        return (4 / 3) * np.pi * self.params.radius0 ** 3
 
     @staticmethod
     def calculate_center_of_mass(z: np.ndarray, rho: np.ndarray) -> float:
@@ -498,7 +499,7 @@ class FoSShapePlotter:
         # Calculate the center of mass
         z_cm = calculator.calculate_center_of_mass(z, rho)
 
-        # Also calculate center of mass for the unnormalized shape
+        # Also calculate the center of mass for the unnormalized shape
         z_unnorm, rho_unnorm = calculator.calculate_shape()
         z_cm_unnorm = calculator.calculate_center_of_mass(z_unnorm, rho_unnorm)
 
