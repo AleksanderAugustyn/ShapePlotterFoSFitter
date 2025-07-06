@@ -35,7 +35,7 @@ class FoSParameters:
 
     @property
     def radius0(self) -> float:
-        """Radius of a sphere with the same volume."""
+        """Radius of a spherical nucleus with the same number of nucleons."""
         return self.r0_constant * (self.nucleons ** (1 / 3))
 
     @property
@@ -44,15 +44,9 @@ class FoSParameters:
         return self.c_elongation * self.radius0
 
     @property
-    def zsh(self) -> float:
-        """Shift to place the center of mass at origin."""
-        # From the paper: z_sh = -3/(4π) z_0 (a_3 - a_5/2 + ...)
-        return -3 / (4 * np.pi) * self.z0 * (self.a3 - self.a5 / 2)
-
-    @property
     def a2(self) -> float:
         """Volume conservation constraint: a2 = a4/3 - a6/5 + ..."""
-        return self.a4 / 3 - self.a6 / 5
+        return self.a4 / 3.0 - self.a6 / 5.0
 
     @property
     def sphere_volume(self) -> float:
@@ -63,7 +57,7 @@ class FoSParameters:
     def z_sh(self) -> float:
         """Shift to place the center of mass at origin."""
         # From the paper: z_sh = -3/(4π) z_0 (a_3 - a_5/2 + ...)
-        return -3 / (4 * np.pi) * self.z0 * (self.a3 - self.a5 / 2)
+        return -3.0 / (4.0 * np.pi) * self.z0 * (self.a3 - self.a5 / 2.0)
 
 
 class FoSShapeCalculator:
@@ -78,25 +72,25 @@ class FoSShapeCalculator:
 
         f(u) = 1 - u² - Σ[a_{2k} cos((k-1/2)πu) + a_{2k+1} sin(kπu)]
         """
-        # Get volume-conserving a2
-        a2 = self.params.a2
-
         # Base spherical shape
-        f = 1 - u ** 2
+        f = 1.0 - u ** 2.0
+
+        # Sum Fourier terms
+        sum_terms = 0.0
 
         # Add Fourier terms
-        # k=1: a2 cos(π/2 u) + a3 sin(πu)
-        f -= a2 * np.cos(0.5 * np.pi * u)
-        f -= self.params.a3 * np.sin(np.pi * u)
+        # k=1: a2 * cos((1 - 1) / 2 * π * u) + a3 sin(1 * π * u)
+        sum_terms += self.params.a2 * np.cos((1.0 - 1.0) / 2.0 * np.pi * u)
+        sum_terms += self.params.a3 * np.sin(1.0 * np.pi * u)
 
-        # k=2: a4 cos(3π/2 u) + a5 sin(2πu)
-        f -= self.params.a4 * np.cos(1.5 * np.pi * u)
-        f -= self.params.a5 * np.sin(2 * np.pi * u)
+        # k=2: a4 * cos((2 - 1) / 2 * π * u) + a5 sin(2πu)
+        sum_terms += self.params.a4 * np.cos((2.0 - 1.0) / 2.0 * np.pi * u)
+        sum_terms += self.params.a5 * np.sin(2.0 * np.pi * u)
 
-        # k=3: a6 cos(5π/2 u)
-        f -= self.params.a6 * np.cos(2.5 * np.pi * u)
+        # k=3: a6 * cos((3 - 1) / 2 * π * u)
+        sum_terms += self.params.a6 * np.cos((3.0 - 1.0) / 2.0 * np.pi * u)
 
-        return f
+        return f - sum_terms
 
     def calculate_shape(self, n_points: int = 2000) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -116,24 +110,27 @@ class FoSShapeCalculator:
         z_min = -self.params.z0
         z_max = self.params.z0
         z = np.linspace(z_min, z_max, n_points)
+
+        # Apply the shift to z
+        z = (z - self.params.z_sh)
+
+        # Calculate normalized u
         u = z / self.params.z0
 
         # Ensure u is in [-1, 1]
-        u = np.clip(u, -1, 1)
+        u = np.clip(u, -1.0, 1.0)
 
         # Calculate f(u)
         f_vals = self.f_function(u)
 
-        # Calculate ρ² = R₀² c f(u)
-        rho_squared = self.params.radius0 ** 2 * self.params.c_elongation * f_vals
+        # Calculate ρ² = R₀² / c * f(u)
+        rho_squared = self.params.radius0 ** 2 / self.params.c_elongation * f_vals
 
         # Handle negative values (set to 0)
         rho_squared = np.maximum(rho_squared, 0)
 
         # Calculate ρ
         rho = np.sqrt(rho_squared)
-
-        z = z - self.params.zsh  # Apply the shift to z
 
         return z, rho
 
@@ -476,7 +473,7 @@ class FoSShapePlotter:
             f"R₀ = {r0:.3f} fm\n"
             f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
             f"\nShift Information:\n"
-            f"Theoretical z_shift = {current_params.zsh:.3f} fm\n"
+            f"Theoretical z_shift = {current_params.z_sh:.3f} fm\n"
             f"\nCenter of Mass:\n"
             f"\nParameter Relations:\n"
             f"c = q₂ + 1.0 + 1.5a₄\n"
