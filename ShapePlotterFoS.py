@@ -97,7 +97,7 @@ class FoSShapeCalculator:
         Calculate the shape coordinates in (z, ρ) space.
 
         For axially symmetric case (η=0):
-        ρ²(z) = R₀² c f((z - z_sh)/z₀)
+        ρ²(z) = R₀² / c * f((z - z_sh)/z₀)
 
         Args:
             n_points: Number of points to calculate
