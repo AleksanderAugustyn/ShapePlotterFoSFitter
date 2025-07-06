@@ -70,7 +70,7 @@ class FoSShapeCalculator:
         """
         Calculate the shape function f(u).
 
-        f(u) = 1 - u² - Σ[a_{2k} cos((k-1/2)πu) + a_{2k+1} sin(kπu)]
+        f(u) = 1 - u² - Σ[a_{2k} cos((2k-1/2)πu) + a_{2k+1} sin(kπu)]
         """
         # Base spherical shape
         f = 1.0 - u ** 2.0
@@ -79,16 +79,16 @@ class FoSShapeCalculator:
         sum_terms = 0.0
 
         # Add Fourier terms
-        # k=1: a2 * cos((1 - 1) / 2 * π * u) + a3 sin(1 * π * u)
-        sum_terms += self.params.a2 * np.cos((1.0 - 1.0) / 2.0 * np.pi * u)
+        # k=1: a2 * cos((2 - 1) / 2 * π * u) + a3 sin(1 * π * u)
+        sum_terms += self.params.a2 * np.cos((2.0 - 1.0) / 2.0 * np.pi * u)
         sum_terms += self.params.a3 * np.sin(1.0 * np.pi * u)
 
-        # k=2: a4 * cos((2 - 1) / 2 * π * u) + a5 sin(2πu)
-        sum_terms += self.params.a4 * np.cos((2.0 - 1.0) / 2.0 * np.pi * u)
+        # k=2: a4 * cos((4 - 1) / 2 * π * u) + a5 sin(2πu)
+        sum_terms += self.params.a4 * np.cos((4.0 - 1.0) / 2.0 * np.pi * u)
         sum_terms += self.params.a5 * np.sin(2.0 * np.pi * u)
 
-        # k=3: a6 * cos((3 - 1) / 2 * π * u)
-        sum_terms += self.params.a6 * np.cos((3.0 - 1.0) / 2.0 * np.pi * u)
+        # k=3: a6 * cos((6 - 1) / 2 * π * u)
+        sum_terms += self.params.a6 * np.cos((6.0 - 1.0) / 2.0 * np.pi * u)
 
         return f - sum_terms
 
@@ -111,11 +111,8 @@ class FoSShapeCalculator:
         z_max = self.params.z0 + self.params.z_sh
         z = np.linspace(z_min, z_max, n_points)
 
-        # Apply the shift to z
-        z = (z - self.params.z_sh)
-
-        # Calculate normalized u
-        u = z / self.params.z0
+        # Calculate normalized u with shift in z
+        u = (z - self.params.z_sh) / self.params.z0
 
         # Ensure u is in [-1, 1]
         u = np.clip(u, -1.0, 1.0)
