@@ -131,7 +131,6 @@ class FoSShapeCalculator:
 
         return z, rho
 
-
     @staticmethod
     def calculate_volume(z: np.ndarray, rho: np.ndarray) -> float:
         """
@@ -143,6 +142,31 @@ class FoSShapeCalculator:
         rho_mid = (rho[1:] + rho[:-1]) / 2
         volume = np.pi * np.sum(rho_mid ** 2 * dz)
         return volume
+
+    @staticmethod
+    def calculate_center_of_mass(z: np.ndarray, rho: np.ndarray) -> float:
+        """
+        Calculate the center of mass position along the z-axis.
+        z_cm = ∫ z ρ²(z) dz / ∫ ρ²(z) dz
+        """
+        if len(z) < 2:
+            return 0.0
+
+        # Use trapezoidal rule for both integrals
+        dz = np.diff(z)
+        z_mid = (z[1:] + z[:-1]) / 2
+        rho_mid = (rho[1:] + rho[:-1]) / 2
+
+        # Numerator: ∫ z ρ²(z) dz
+        numerator = np.sum(z_mid * rho_mid ** 2 * dz)
+
+        # Denominator: ∫ ρ²(z) dz
+        denominator = np.sum(rho_mid ** 2 * dz)
+
+        if denominator == 0:
+            return 0.0
+
+        return numerator / denominator
 
 
 class FoSShapePlotter:
@@ -242,6 +266,9 @@ class FoSShapePlotter:
 
         # Plot theoretical shift CM
         self.cm_theoretical, = self.ax_plot.plot(0, 0, 'b^', label='CM with theoretical shift', markersize=8)
+
+        # Plot the calculated center of mass
+        self.cm_calculated, = self.ax_plot.plot(0, 0, 'go', label='Calculated CM', markersize=8)
 
         self.ax_plot.legend(loc='upper right')
 
@@ -434,6 +461,10 @@ class FoSShapePlotter:
         # Update shape lines
         self.line.set_data(z, rho)
         self.line_mirror.set_data(z, -rho)
+
+        # Update center of mass points
+        self.cm_theoretical.set_data([current_params.z_sh], [0])
+        self.cm_calculated.set_data([calculator.calculate_center_of_mass(z, rho)], [0])
 
         # Update a reference sphere
         r0 = current_params.radius0
