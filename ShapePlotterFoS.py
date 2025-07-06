@@ -477,7 +477,7 @@ class FoSShapePlotter:
             f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference sphere volume: {current_params.sphere_volume:.1f} fm³\n"
-            f"Normalized FoS volume: {normalized_volume:.1f} fm³\n"
+            f"FoS shape volume: {normalized_volume:.1f} fm³\n"
             f"\nShape dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
