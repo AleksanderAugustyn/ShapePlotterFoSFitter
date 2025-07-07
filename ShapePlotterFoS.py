@@ -491,7 +491,6 @@ class FoSShapePlotter:
 
         # Add information text
         info_text = (
-            f"A = {current_params.nucleons}\n"
             f"R₀ = {r0:.3f} fm\n"
             f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
             f"\nShift Information:\n"
@@ -523,7 +522,7 @@ class FoSShapePlotter:
         # Update title
         self.ax_plot.set_title(
             f'Nuclear Shape (Z={current_params.protons}, N={current_params.neutrons}, '
-            f'A={current_params.nucleons}) - Volume Normalized', fontsize=14
+            f'A={current_params.nucleons})', fontsize=14
         )
 
         # Update legend
