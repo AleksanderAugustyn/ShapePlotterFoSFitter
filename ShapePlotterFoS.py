@@ -443,10 +443,10 @@ class FoSShapePlotter:
             a6=self.slider_a6.val
         )
 
-        # Calculate normalized shape
+        # Calculate shape
         calculator = FoSShapeCalculator(current_params)
 
-        # Calculate shape with theoretical shift for comparison
+        # Calculate shape with theoretical shift
         z, rho = calculator.calculate_shape()
 
         # Update shape lines
@@ -456,6 +456,12 @@ class FoSShapePlotter:
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
         self.cm_calculated.set_data([calculator.calculate_center_of_mass(z, rho)], [0])
+
+        # Calculate the ratio of calculated CM to theoretical shift, if NaN, set to 0
+        cm_ratio = (
+            calculator.calculate_center_of_mass(z, rho) / current_params.z_sh
+            if current_params.z_sh != 0 else 0.0
+        )
 
         # Update a reference sphere
         r0 = current_params.radius0
@@ -470,8 +476,8 @@ class FoSShapePlotter:
         self.ax_plot.set_xlim(-max_val, max_val)
         self.ax_plot.set_ylim(-max_val, max_val)
 
-        # Calculate normalized volume for verification
-        normalized_volume = calculator.calculate_volume(z, rho)
+        # Calculate the volume of the plotted shape for verification
+        shape_volume = calculator.calculate_volume(z, rho)
 
         # Calculate dimensions
         max_z = np.max(np.abs(z))
@@ -491,12 +497,14 @@ class FoSShapePlotter:
             f"\nShift Information:\n"
             f"Theoretical z_shift = {current_params.z_sh:.3f} fm\n"
             f"\nCenter of Mass:\n"
+            f"Calculated CM: {calculator.calculate_center_of_mass(z, rho):.3f} fm\n"
+            f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nParameter Relations:\n"
             f"c = q₂ + 1.0 + 1.5a₄\n"
             f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference sphere volume: {current_params.sphere_volume:.1f} fm³\n"
-            f"FoS shape volume: {normalized_volume:.1f} fm³\n"
+            f"FoS shape volume: {shape_volume:.1f} fm³\n"
             f"\nShape dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
