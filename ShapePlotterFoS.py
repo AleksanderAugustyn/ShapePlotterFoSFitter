@@ -57,7 +57,8 @@ class FoSParameters:
     def z_sh(self) -> float:
         """Shift to place the center of mass at origin."""
         # From the paper: z_sh = -3/(4π) z_0 (a_3 - a_5/2 + ...)
-        return -3.0 / (4.0 * np.pi) * self.z0 * (self.a3 - self.a5 / 2.0)
+        # Error in the paper, should be: +3/(2π) z_0 (a_3 - a_5/2 + ...)
+        return 3.0 / (2.0 * np.pi) * self.z0 * (self.a3 - self.a5 / 2.0)
 
 
 class FoSShapeCalculator:
@@ -70,6 +71,8 @@ class FoSShapeCalculator:
         """
         Calculate the shape function f(u).
 
+        # From paper: f(u) = 1 - u² - Σ[a_{2k} cos((k-1/2)πu) + a_{2k+1} sin(kπu)]
+        # Error in the paper, should be:
         f(u) = 1 - u² - Σ[a_{2k} cos((2k-1/2)πu) + a_{2k+1} sin(kπu)]
         """
         # Base spherical shape
