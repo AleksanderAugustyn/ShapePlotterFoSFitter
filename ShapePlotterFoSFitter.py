@@ -250,14 +250,14 @@ class FoSShapePlotter:
         """Create and set up the matplotlib figure."""
         self.fig = plt.figure(figsize=(16, 8))
 
-        # Create main plot on the left side
+        # Create the main plot on the left side
         self.ax_plot = self.fig.add_subplot(121)
 
-        # Create text area on the right side
+        # Create a text area on the right side
         self.ax_text = self.fig.add_subplot(122)
         self.ax_text.set_xlim(0, 1)
         self.ax_text.set_ylim(0, 1)
-        self.ax_text.axis('off')  # Hide axes for text area
+        self.ax_text.axis('off')  # Hide axes for the text area
 
         plt.subplots_adjust(left=0.08, bottom=0.45, right=0.95, top=0.9, wspace=0.1)
 
@@ -548,7 +548,7 @@ class FoSShapePlotter:
             f'A={current_params.nucleons})', fontsize=14
         )
 
-        # Update legend (moved to upper left since text is now on the right)
+        # Update legend (moved to an upper left since a text is now on the right)
         self.ax_plot.legend(loc='upper left')
 
         self.fig.canvas.draw_idle()
