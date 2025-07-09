@@ -99,7 +99,7 @@ class FoSShapeCalculator:
 
         return f - sum_terms
 
-    def calculate_shape(self, n_points: int = 2000) -> Tuple[np.ndarray, np.ndarray]:
+    def calculate_shape(self, n_points: int = 720) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the shape coordinates in (z, ρ) space.
 
@@ -203,6 +203,7 @@ class FoSShapePlotter:
         # UI elements
         self.fig = None
         self.ax_plot = None
+        self.ax_text = None
         self.line = None
         self.line_mirror = None
         self.sphere_line = None
@@ -247,10 +248,18 @@ class FoSShapePlotter:
 
     def create_figure(self):
         """Create and set up the matplotlib figure."""
-        self.fig = plt.figure(figsize=(12, 8))
-        self.ax_plot = self.fig.add_subplot(111)
+        self.fig = plt.figure(figsize=(16, 8))
 
-        plt.subplots_adjust(left=0.1, bottom=0.45, right=0.9, top=0.9)
+        # Create main plot on the left side
+        self.ax_plot = self.fig.add_subplot(121)
+
+        # Create text area on the right side
+        self.ax_text = self.fig.add_subplot(122)
+        self.ax_text.set_xlim(0, 1)
+        self.ax_text.set_ylim(0, 1)
+        self.ax_text.axis('off')  # Hide axes for text area
+
+        plt.subplots_adjust(left=0.08, bottom=0.45, right=0.95, top=0.9, wspace=0.1)
 
         # Set up the main plot
         self.ax_plot.set_aspect('equal')
@@ -525,12 +534,12 @@ class FoSShapePlotter:
         )
 
         # Remove old text if it exists
-        for artist in self.ax_plot.texts:
+        for artist in self.ax_text.texts:
             artist.remove()
 
-        # Add new text
-        self.ax_plot.text(0.02, 0.98, info_text, transform=self.ax_plot.transAxes,
-                          fontsize=10, verticalalignment='top',
+        # Add new text to the right-side text area
+        self.ax_text.text(0.05, 0.95, info_text, transform=self.ax_text.transAxes,
+                          fontsize=10, verticalalignment='top', horizontalalignment='left',
                           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
         # Update title
@@ -539,8 +548,8 @@ class FoSShapePlotter:
             f'A={current_params.nucleons})', fontsize=14
         )
 
-        # Update legend
-        self.ax_plot.legend(loc='upper right')
+        # Update legend (moved to upper left since text is now on the right)
+        self.ax_plot.legend(loc='upper left')
 
         self.fig.canvas.draw_idle()
 
