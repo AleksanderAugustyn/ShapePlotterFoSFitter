@@ -515,7 +515,7 @@ class FoSShapePlotter:
 
             # Calculate beta parameters
             spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
-            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=32)
+            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=12)
 
             # Calculate the beta shape coordinates
             theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta_parameters)
@@ -594,7 +594,7 @@ class FoSShapePlotter:
             f"FoS shape volume: {shape_volume:.3f} fm³\n"
             f"Beta shape volume: {beta_volume:.3f} fm³\n"
             f"\nShape dimensions:\n"
-            f"Max z_fo_s: {max_z:.2f} fm\n"
+            f"Max z_fos: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
             f"Neck radius: {neck_radius:.2f} fm"
         )

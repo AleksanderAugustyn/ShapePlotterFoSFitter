@@ -81,6 +81,11 @@ class BetaDeformationCalculator:
         """
         beta = {}
 
+        # Calculate denominator: ∫ Y_00(θ) sin(θ) dθ
+        # For l=0, Y_00 = 1/sqrt(4π)
+        integrand_denominator = self.r * self._get_ylm(0, 0) * self.sin_theta
+        denominator = simpson(integrand_denominator, x=self.theta)
+
         for l in range(1, l_max + 1):
             # Get spherical harmonic
             ylm = self._get_ylm(l, 0)
@@ -88,11 +93,6 @@ class BetaDeformationCalculator:
             # Calculate numerator: ∫ r(θ) Y_λ0(θ) sin(θ) dθ
             integrand_numerator = self.r * ylm * self.sin_theta
             numerator = simpson(integrand_numerator, x=self.theta)
-
-            # Calculate denominator: ∫ Y_00(θ) sin(θ) dθ
-            # For l=0, Y_00 = 1/sqrt(4π)
-            integrand_denominator = self._get_ylm(0, 0) * self.sin_theta
-            denominator = simpson(integrand_denominator, x=self.theta)
 
             if abs(denominator) > 1e-10:
                 beta[l] = numerator / denominator
