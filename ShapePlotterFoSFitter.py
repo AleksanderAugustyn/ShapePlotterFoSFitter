@@ -632,8 +632,8 @@ class FoSShapePlotter:
             f"Neck radius: {neck_radius:.2f} fm\n"
             f"Calculated c (elongation): {max_z / current_params.radius0:.3f}\n"
             f"\nFit information:\n"
-            f"RMSE (Spherical Fit): {conversion_root_mean_squared_error:.3f} fm\n"
-            f"RMSE (Beta Fit): {rmse_beta_fit:.3f} fm\n"
+            f"RMSE (Spherical Coords Conversion): {conversion_root_mean_squared_error:.3f} fm\n"
+            f"RMSE (Beta Parametrization Fit): {rmse_beta_fit:.3f} fm\n"
             f"\nSignificant Beta Parameters (>0.001):\n{significant_beta_parameters}"
         )
 
