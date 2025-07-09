@@ -204,9 +204,9 @@ class FoSShapePlotter:
         self.fig = None
         self.ax_plot = None
         self.ax_text = None
-        self.line = None
-        self.line_mirror = None
-        self.sphere_line = None
+        self.line_fos = None
+        self.line_fos_mirror = None
+        self.reference_sphere_line = None
         self.cm_point = None
         self.cm_calculated = None
         self.cm_theoretical = None
@@ -279,9 +279,10 @@ class FoSShapePlotter:
         sphere_y = r0 * np.sin(theta)
 
         # Plot shape and its mirror
-        self.line, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape (normalized)', linewidth=2)
-        self.line_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
-        self.sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray', alpha=0.5, label=f'R₀={r0:.2f} fm')
+        self.line_fos, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape (normalized)', linewidth=2)
+        self.line_fos_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
+
+        self.reference_sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray', alpha=0.5, label=f'R₀={r0:.2f} fm')
 
         # Plot expected center of mass (at origin)
         self.cm_point, = self.ax_plot.plot(0, 0, 'ro', label='Expected CM (origin)', markersize=8)
@@ -473,8 +474,8 @@ class FoSShapePlotter:
         z, rho = calculator.calculate_shape()
 
         # Update shape lines
-        self.line.set_data(z, rho)
-        self.line_mirror.set_data(z, -rho)
+        self.line_fos.set_data(z, rho)
+        self.line_fos_mirror.set_data(z, -rho)
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
@@ -491,8 +492,8 @@ class FoSShapePlotter:
         theta = np.linspace(0, 2 * np.pi, 200)
         sphere_x = r0 * np.cos(theta)
         sphere_y = r0 * np.sin(theta)
-        self.sphere_line.set_data(sphere_x, sphere_y)
-        self.sphere_line.set_label(f'R₀={r0:.2f} fm')
+        self.reference_sphere_line.set_data(sphere_x, sphere_y)
+        self.reference_sphere_line.set_label(f'R₀={r0:.2f} fm')
 
         # Update plot limits
         max_val = max(np.max(np.abs(z)), np.max(np.abs(rho))) * 1.2
