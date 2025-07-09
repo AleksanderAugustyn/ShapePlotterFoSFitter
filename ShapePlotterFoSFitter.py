@@ -139,7 +139,7 @@ class FoSShapeCalculator:
         return z, rho
 
     @staticmethod
-    def calculate_volume(z: np.ndarray, rho: np.ndarray) -> float:
+    def calculate_volume_in_cylindrical_coordinates(z: np.ndarray, rho: np.ndarray) -> float:
         """
         Calculate volume by numerical integration.
         V = π ∫ ρ²(z) dz
@@ -501,7 +501,7 @@ class FoSShapePlotter:
         self.ax_plot.set_ylim(-max_val, max_val)
 
         # Calculate the volume of the plotted shape for verification
-        shape_volume = calculator.calculate_volume(z, rho)
+        shape_volume = calculator.calculate_volume_in_cylindrical_coordinates(z, rho)
 
         # Calculate dimensions
         max_z = np.max(np.abs(z))
