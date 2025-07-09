@@ -360,7 +360,7 @@ class FoSShapePlotter:
 
         # Style font sizes for all sliders
         for slider in [self.slider_z, self.slider_n, self.slider_c, self.slider_q2,
-                       self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6]:
+                       self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6, self.slider_max_beta]:
             slider.label.set_fontsize(12)
             slider.valtext.set_fontsize(12)
 
