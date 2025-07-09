@@ -491,6 +491,7 @@ class FoSShapePlotter:
 
         # Calculate shape with theoretical shift
         z_fos, rho_fos = calculator.calculate_shape()
+        radius_from_fos: np.ndarray = np.sqrt(z_fos ** 2 + rho_fos ** 2)
 
         # Update FoS shape lines
         self.line_fos.set_data(z_fos, rho_fos)
@@ -502,6 +503,8 @@ class FoSShapePlotter:
         theta_fos: np.ndarray = np.array([])
         radius_beta: np.ndarray = np.array([])
         theta_beta: np.ndarray = np.array([])
+        rmse_spherical_fit: float = 0.0
+        rmse_beta_fit: float = 0.0
         try:
             # First, convert z_fos, rho_fos to spherical coordinates
             cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_fos, rho_points=rho_fos)
@@ -543,11 +546,30 @@ class FoSShapePlotter:
             # Calculate the volume and center of mass for the beta shape
             beta_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
 
+            # Calculate RMSE for spherical fit
+            rmse_spherical_fit = np.sqrt(np.mean((radius_fos - radius_from_fos) ** 2))
+            rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_from_fos) ** 2))
+
+            # Get significant beta parameters
+            beta_strings = [f"β_{l:<2} = {val:.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) > 0.001]
+            if not beta_strings:
+                significant_beta_parameters = "None"
+            else:
+                paired_betas = []
+                for i in range(0, len(beta_strings), 2):
+                    col1 = beta_strings[i]
+                    if i + 1 < len(beta_strings):
+                        col2 = beta_strings[i + 1]
+                        paired_betas.append(f"{col1:<20} {col2}")
+                    else:
+                        paired_betas.append(col1)
+                significant_beta_parameters = "\n".join(paired_betas)
 
         except Exception as e:
             print(f"Conversion error: {e}")
             self.line_beta.set_data([], [])
             self.line_beta_mirror.set_data([], [])
+            significant_beta_parameters = "Calculation Error"
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
@@ -608,10 +630,14 @@ class FoSShapePlotter:
             f"FoS shape volume: {shape_volume:.3f} fm³\n"
             f"Beta shape volume: {beta_volume:.3f} fm³\n"
             f"\nShape dimensions:\n"
-            f"Max z_fos: {max_z:.2f} fm\n"
+            f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
             f"Neck radius: {neck_radius:.2f} fm\n"
             f"Calculated c (elongation): {max_z / current_params.radius0:.3f}\n"
+            f"\nFit information:\n"
+            f"RMSE (Spherical Fit): {rmse_spherical_fit:.3f} fm\n"
+            f"RMSE (Beta Fit): {rmse_beta_fit:.3f} fm\n"
+            f"\nSignificant Beta Parameters (>0.001):\n{significant_beta_parameters}"
         )
 
         # Remove old text if it exists
@@ -621,7 +647,7 @@ class FoSShapePlotter:
         # Add new text to the right-side text area
         self.ax_text.text(0.05, 0.95, info_text, transform=self.ax_text.transAxes,
                           fontsize=10, verticalalignment='top', horizontalalignment='left',
-                          bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5})
+                          bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
         # Update title
         self.ax_plot.set_title(
