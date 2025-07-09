@@ -206,6 +206,8 @@ class FoSShapePlotter:
         self.ax_text = None
         self.line_fos = None
         self.line_fos_mirror = None
+        self.line_beta = None
+        self.line_beta_mirror = None
         self.reference_sphere_line = None
         self.cm_point = None
         self.cm_calculated = None
@@ -278,9 +280,13 @@ class FoSShapePlotter:
         sphere_x = r0 * np.cos(theta)
         sphere_y = r0 * np.sin(theta)
 
-        # Plot shape and its mirror
+        # Plot the FoS shape and its mirror
         self.line_fos, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape (normalized)', linewidth=2)
         self.line_fos_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
+
+        # Plot the beta shape and its mirror
+        self.line_beta = self.ax_plot.plot([], [], 'r--', label='Beta shape (normalized)', linewidth=2)
+        self.line_beta_mirror = self.ax_plot.plot([], [], 'r--', linewidth=2)
 
         self.reference_sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray', alpha=0.5, label=f'R₀={r0:.2f} fm')
 
@@ -473,9 +479,11 @@ class FoSShapePlotter:
         # Calculate shape with theoretical shift
         z, rho = calculator.calculate_shape()
 
-        # Update shape lines
+        # Update FoS shape lines
         self.line_fos.set_data(z, rho)
         self.line_fos_mirror.set_data(z, -rho)
+
+        # Update beta shape lines
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
