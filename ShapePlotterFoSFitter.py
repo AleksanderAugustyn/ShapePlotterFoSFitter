@@ -237,6 +237,9 @@ class FoSShapePlotter:
         self.save_button = None
         self.preset_buttons = []
 
+        # Decrement/Increment buttons for sliders
+        self.slider_buttons = {}
+
         # Flag to prevent infinite update loops
         self.updating = False
 
@@ -316,47 +319,45 @@ class FoSShapePlotter:
 
         self.ax_plot.legend(loc='upper right', bbox_to_anchor=(0, 1))
 
+    def create_slider_with_buttons(self, slider_name, y_pos, label, valmin, valmax, valinit, valstep):
+        """Create a slider with decrement and increment buttons."""
+        # Create decrement button (left side)
+        dec_ax = plt.axes((0.20, y_pos, 0.02, 0.03))
+        dec_button = Button(dec_ax, '-')
+
+        # Create the slider
+        slider_ax = plt.axes((0.25, y_pos, 0.5, 0.03))
+        slider = Slider(ax=slider_ax, label=label, valmin=valmin, valmax=valmax, valinit=valinit, valstep=valstep)
+
+        # Create increment button (right side)
+        inc_ax = plt.axes((0.78, y_pos, 0.02, 0.03))
+        inc_button = Button(inc_ax, '+')
+
+        # Store buttons for later reference
+        self.slider_buttons[slider_name] = {
+            'dec_button': dec_button,
+            'inc_button': inc_button,
+            'slider': slider
+        }
+
+        return slider, dec_button, inc_button
+
     def setup_controls(self):
         """Set up all UI controls."""
         # Starting y position for sliders
         first_slider_y = 0.02
         slider_spacing = 0.04
 
-        # Create proton (Z) slider
-        ax_z = plt.axes((0.25, first_slider_y, 0.5, 0.03))
-        self.slider_z = Slider(ax=ax_z, label='Z', valmin=20, valmax=120, valinit=self.initial_z, valstep=1)
-
-        # Create neutron (N) slider
-        ax_n = plt.axes((0.25, first_slider_y + slider_spacing, 0.5, 0.03))
-        self.slider_n = Slider(ax=ax_n, label='N', valmin=20, valmax=180, valinit=self.initial_n, valstep=1)
-
-        # Create an elongation (c) slider
-        ax_c = plt.axes((0.25, first_slider_y + 2 * slider_spacing, 0.5, 0.03))
-        self.slider_c = Slider(ax=ax_c, label='c', valmin=0.5, valmax=3.0, valinit=self.initial_c, valstep=0.01)
-
-        # Create q2 slider (entangled with c and a4)
-        ax_q2 = plt.axes((0.25, first_slider_y + 3 * slider_spacing, 0.5, 0.03))
-        self.slider_q2 = Slider(ax=ax_q2, label='q₂', valmin=-1.0, valmax=2.0, valinit=self.initial_q2, valstep=0.01)
-
-        # Create a3 slider (reflection asymmetry)
-        ax_a3 = plt.axes((0.25, first_slider_y + 4 * slider_spacing, 0.5, 0.03))
-        self.slider_a3 = Slider(ax=ax_a3, label='a₃', valmin=-0.5, valmax=0.5, valinit=self.initial_a3, valstep=0.01)
-
-        # Create a4 slider (neck parameter)
-        ax_a4 = plt.axes((0.25, first_slider_y + 5 * slider_spacing, 0.5, 0.03))
-        self.slider_a4 = Slider(ax=ax_a4, label='a₄', valmin=-0.5, valmax=0.75, valinit=self.initial_a4, valstep=0.01)
-
-        # Create a5 slider
-        ax_a5 = plt.axes((0.25, first_slider_y + 6 * slider_spacing, 0.5, 0.03))
-        self.slider_a5 = Slider(ax=ax_a5, label='a₅', valmin=-0.3, valmax=0.3, valinit=self.initial_a5, valstep=0.01)
-
-        # Create a6 slider
-        ax_a6 = plt.axes((0.25, first_slider_y + 7 * slider_spacing, 0.5, 0.03))
-        self.slider_a6 = Slider(ax=ax_a6, label='a₆', valmin=-0.3, valmax=0.3, valinit=self.initial_a6, valstep=0.01)
-
-        # Create a slider for maximum beta value
-        ax_max_beta = plt.axes((0.25, first_slider_y + 8 * slider_spacing, 0.5, 0.03))
-        self.slider_max_beta = Slider(ax=ax_max_beta, label='Max Betas Used For Fit', valmin=1.0, valmax=36.0, valinit=12.0, valstep=1.0)
+        # Create sliders with buttons
+        self.slider_z, _, _ = self.create_slider_with_buttons('z', first_slider_y, 'Z', 82, 120, self.initial_z, 1)
+        self.slider_n, _, _ = self.create_slider_with_buttons('n', first_slider_y + slider_spacing, 'N', 120, 180, self.initial_n, 1)
+        self.slider_c, _, _ = self.create_slider_with_buttons('c', first_slider_y + 2 * slider_spacing, 'c', 0.5, 3.0, self.initial_c, 0.01)
+        self.slider_q2, _, _ = self.create_slider_with_buttons('q2', first_slider_y + 3 * slider_spacing, 'q₂', -0.5, 1.0, self.initial_q2, 0.01)
+        self.slider_a3, _, _ = self.create_slider_with_buttons('a3', first_slider_y + 4 * slider_spacing, 'a₃', -0.6, 0.6, self.initial_a3, 0.01)
+        self.slider_a4, _, _ = self.create_slider_with_buttons('a4', first_slider_y + 5 * slider_spacing, 'a₄', -0.75, 0.75, self.initial_a4, 0.01)
+        self.slider_a5, _, _ = self.create_slider_with_buttons('a5', first_slider_y + 6 * slider_spacing, 'a₅', -0.5, 0.5, self.initial_a5, 0.01)
+        self.slider_a6, _, _ = self.create_slider_with_buttons('a6', first_slider_y + 7 * slider_spacing, 'a₆', -0.5, 0.5, self.initial_a6, 0.01)
+        self.slider_max_beta, _, _ = self.create_slider_with_buttons('max_beta', first_slider_y + 8 * slider_spacing, 'Max Betas Used For Fit', 1.0, 36.0, 12.0, 1.0)
 
         # Style font sizes for all sliders
         for slider in [self.slider_z, self.slider_n, self.slider_c, self.slider_q2,
@@ -364,11 +365,16 @@ class FoSShapePlotter:
             slider.label.set_fontsize(12)
             slider.valtext.set_fontsize(12)
 
+        # Style increment/decrement buttons
+        for slider_name, buttons in self.slider_buttons.items():
+            buttons['dec_button'].label.set_fontsize(10)
+            buttons['inc_button'].label.set_fontsize(10)
+
         # Create buttons
-        ax_reset = plt.axes((0.8, 0.37, 0.1, 0.04))
+        ax_reset = plt.axes((0.82, 0.37, 0.1, 0.04))
         self.reset_button = Button(ax=ax_reset, label='Reset')
 
-        ax_save = plt.axes((0.8, 0.32, 0.1, 0.04))
+        ax_save = plt.axes((0.82, 0.32, 0.1, 0.04))
         self.save_button = Button(ax=ax_save, label='Save Plot')
 
         # Create preset buttons
@@ -425,6 +431,38 @@ class FoSShapePlotter:
         # Connect preset buttons
         for i, btn in enumerate(self.preset_buttons):
             btn.on_clicked(lambda event, num=i: self.apply_preset(num))
+
+        # Connect slider increment/decrement buttons
+        self.setup_slider_buttons()
+
+    def setup_slider_buttons(self):
+        """Set up event handlers for slider increment/decrement buttons."""
+
+        # Helper function to create increment/decrement handlers
+        def create_increment_handler(slider):
+            def handler(event):
+                current_val = slider.val
+                new_val = min(current_val + slider.valstep, slider.valmax)
+                slider.set_val(new_val)
+
+            return handler
+
+        def create_decrement_handler(slider):
+            def handler(event):
+                current_val = slider.val
+                new_val = max(current_val - slider.valstep, slider.valmin)
+                slider.set_val(new_val)
+
+            return handler
+
+        # Connect buttons for each slider
+        for slider_name, buttons in self.slider_buttons.items():
+            slider = buttons['slider']
+            dec_button = buttons['dec_button']
+            inc_button = buttons['inc_button']
+
+            dec_button.on_clicked(create_decrement_handler(slider))
+            inc_button.on_clicked(create_increment_handler(slider))
 
     def on_c_changed(self, val):
         """Handle changes to c slider - update q2."""
@@ -650,7 +688,7 @@ class FoSShapePlotter:
             artist.remove()
 
         # Add new text to the right-side text area
-        self.ax_text.text(0.05, 0.95, info_text, transform=self.ax_text.transAxes,
+        self.ax_text.text(0.05, 1.1, info_text, transform=self.ax_text.transAxes,
                           fontsize=10, verticalalignment='top', horizontalalignment='left',
                           bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
