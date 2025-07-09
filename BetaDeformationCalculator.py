@@ -95,7 +95,7 @@ class BetaDeformationCalculator:
             numerator = simpson(integrand_numerator, x=self.theta)
 
             if abs(denominator) > 1e-10:
-                beta[l] = numerator / denominator
+                beta[l] = np.sqrt(4 * np.pi) * numerator / denominator
             else:
                 beta[l] = 0.0
 

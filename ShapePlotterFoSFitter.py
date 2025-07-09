@@ -515,7 +515,7 @@ class FoSShapePlotter:
 
             # Calculate beta parameters
             spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
-            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=12)
+            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=32)
 
             # Calculate the beta shape coordinates
             theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta_parameters)
@@ -540,7 +540,6 @@ class FoSShapePlotter:
             print(f"Conversion error: {e}")
             self.line_beta.set_data([], [])
             self.line_beta_mirror.set_data([], [])
-            conversion_error = -1
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
