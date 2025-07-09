@@ -219,7 +219,7 @@ class CylindricalToSphericalConverter:
         Returns:
             Dictionary with validation metrics
         """
-        theta_sample = np.linspace(0.01, np.pi - 0.01, n_samples)
+        theta_sample = np.linspace(0.05, np.pi - 0.05, n_samples)
         errors = []
 
         for theta in theta_sample:

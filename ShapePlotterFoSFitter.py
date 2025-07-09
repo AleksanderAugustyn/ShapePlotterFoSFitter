@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Button, Slider
 
+from BetaDeformationCalculator import BetaDeformationCalculator
+from CylindricalToSphericalConverter import CylindricalToSphericalConverter
+
 matplotlib.use('TkAgg')
 
 
@@ -285,8 +288,8 @@ class FoSShapePlotter:
         self.line_fos_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
 
         # Plot the beta shape and its mirror
-        self.line_beta = self.ax_plot.plot([], [], 'r--', label='Beta shape (normalized)', linewidth=2)
-        self.line_beta_mirror = self.ax_plot.plot([], [], 'r--', linewidth=2)
+        self.line_beta, = self.ax_plot.plot([], [], 'r--', label='Beta shape (normalized)', linewidth=2, alpha=0.7)
+        self.line_beta_mirror, = self.ax_plot.plot([], [], 'r--', linewidth=2, alpha=0.7)
 
         self.reference_sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray', alpha=0.5, label=f'R₀={r0:.2f} fm')
 
@@ -477,67 +480,107 @@ class FoSShapePlotter:
         calculator = FoSShapeCalculator(current_params)
 
         # Calculate shape with theoretical shift
-        z, rho = calculator.calculate_shape()
+        z_fos, rho_fos = calculator.calculate_shape()
 
         # Update FoS shape lines
-        self.line_fos.set_data(z, rho)
-        self.line_fos_mirror.set_data(z, -rho)
+        self.line_fos.set_data(z_fos, rho_fos)
+        self.line_fos_mirror.set_data(z_fos, -rho_fos)
 
         # Update beta shape lines
+        # First, convert z_fos, rho_fos to spherical coordinates
+
+        try:
+            cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_fos, rho_points=rho_fos)
+            theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=360)
+
+            # Validate the conversion
+            validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=180)
+            conversion_error = validation['mean_error'] * 100  # Convert to percentage
+            if conversion_error > 5.0:
+                print(f"Warning: Conversion error is high ({conversion_error:.2f}%)")
+
+            # Calculate beta parameters
+            spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
+            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=32)
+
+            # Calculate the beta shape coordinates
+            theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta_parameters)
+
+            # Convert back to Cartesian coordinates
+            # For plotting, we need to flip x and y since our original is (z, rho)
+            # In the converter, x = r sin(θ) and y = r cos(θ)
+            # But we want z on the horizontal axis and rho on vertical
+
+            y_beta = radius_beta * np.sin(theta_beta)
+            x_beta = radius_beta * np.cos(theta_beta)
+
+            # Update beta shape lines
+            self.line_beta.set_data(x_beta, y_beta)
+            self.line_beta_mirror.set_data(x_beta, -y_beta)
+
+            # Calculate the volume and center of mass for the beta shape
+            beta_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
+
+
+        except Exception as e:
+            print(f"Conversion error: {e}")
+            self.line_beta.set_data([], [])
+            self.line_beta_mirror.set_data([], [])
+            conversion_error = -1
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
-        self.cm_calculated.set_data([calculator.calculate_center_of_mass(z, rho)], [0])
+        self.cm_calculated.set_data([calculator.calculate_center_of_mass(z_fos, rho_fos)], [0])
 
         # Calculate the ratio of calculated CM to theoretical shift, if NaN, set to 0
         cm_ratio = (
-            calculator.calculate_center_of_mass(z, rho) / current_params.z_sh
+            calculator.calculate_center_of_mass(z_fos, rho_fos) / current_params.z_sh
             if current_params.z_sh != 0 else 0.0
         )
 
         # Update a reference sphere
-        r0 = current_params.radius0
-        theta = np.linspace(0, 2 * np.pi, 200)
-        sphere_x = r0 * np.cos(theta)
-        sphere_y = r0 * np.sin(theta)
+        theta_reference_sphere = np.linspace(0, 2 * np.pi, 200)
+        sphere_x = current_params.radius0 * np.cos(theta_reference_sphere)
+        sphere_y = current_params.radius0 * np.sin(theta_reference_sphere)
         self.reference_sphere_line.set_data(sphere_x, sphere_y)
-        self.reference_sphere_line.set_label(f'R₀={r0:.2f} fm')
+        self.reference_sphere_line.set_label(f'R₀={current_params.radius0:.2f} fm')
 
         # Update plot limits
-        max_val = max(np.max(np.abs(z)), np.max(np.abs(rho))) * 1.2
+        max_val = max(np.max(np.abs(z_fos)), np.max(np.abs(rho_fos))) * 1.2
         self.ax_plot.set_xlim(-max_val, max_val)
         self.ax_plot.set_ylim(-max_val, max_val)
 
         # Calculate the volume of the plotted shape for verification
-        shape_volume = calculator.calculate_volume_in_cylindrical_coordinates(z, rho)
+        shape_volume = calculator.calculate_volume_in_cylindrical_coordinates(z_fos, rho_fos)
 
         # Calculate dimensions
-        max_z = np.max(np.abs(z))
-        max_rho = np.max(rho)
+        max_z = np.max(np.abs(z_fos))
+        max_rho = np.max(rho_fos)
 
         # Calculate neck radius at a4 = 0.72 (scission point)
         if current_params.a4 > 0:
-            neck_radius = min(rho[len(rho) // 2 - 10:len(rho) // 2 + 10])
+            neck_radius = min(rho_fos[len(rho_fos) // 2 - 10:len(rho_fos) // 2 + 10])
         else:
             neck_radius = max_rho
 
         # Add information text
         info_text = (
-            f"R₀ = {r0:.3f} fm\n"
+            f"R₀ = {current_params.radius0:.3f} fm\n"
             f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
             f"\nShift Information:\n"
             f"Theoretical z_shift = {current_params.z_sh:.3f} fm\n"
             f"\nCenter of Mass:\n"
-            f"Calculated CM: {calculator.calculate_center_of_mass(z, rho):.3f} fm\n"
+            f"Calculated CM: {calculator.calculate_center_of_mass(z_fos, rho_fos):.3f} fm\n"
             f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nParameter Relations:\n"
             f"c = q₂ + 1.0 + 1.5a₄\n"
             f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
             f"\nVolume Information:\n"
-            f"Reference sphere volume: {current_params.sphere_volume:.1f} fm³\n"
-            f"FoS shape volume: {shape_volume:.1f} fm³\n"
+            f"Reference sphere volume: {current_params.sphere_volume:.3f} fm³\n"
+            f"FoS shape volume: {shape_volume:.3f} fm³\n"
+            f"Beta shape volume: {beta_volume:.3f} fm³\n"
             f"\nShape dimensions:\n"
-            f"Max z: {max_z:.2f} fm\n"
+            f"Max z_fo_s: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
             f"Neck radius: {neck_radius:.2f} fm"
         )

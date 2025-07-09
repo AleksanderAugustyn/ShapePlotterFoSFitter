@@ -22,16 +22,16 @@ class BetaDeformationCalculator:
     where c is a volume fixing factor and R₀ is the radius of a sphere with the same volume as the nucleus.
     """
 
-    def __init__(self, theta: np.ndarray, r: np.ndarray, number_of_nucleons: int):
+    def __init__(self, theta: np.ndarray, radius: np.ndarray, number_of_nucleons: int):
         """
         Initialize the calculator with shape data.
 
         Args:
             theta: Array of polar angles (0 to π)
-            r: Array of radial distances r(θ)
+            radius: Array of radial distances r(θ)
         """
         self.theta = np.asarray(theta)
-        self.r = np.asarray(r)
+        self.r = np.asarray(radius)
         self.r0 = 1.16
         self.radius0 = 1.16 * number_of_nucleons ** (1 / 3)
 
@@ -128,7 +128,7 @@ class BetaDeformationCalculator:
         """
         Calculate the volume of the shape in spherical coordinates.
 
-        V = ∫ r(θ)² sin(θ) dθ dφ
+        V = ∫ r(θ)² sin(θ) dr dθ dφ = ∫ r(θ)² sin(θ) dr dθ * 2π
 
         Args:
             radius: Array of radial distances r(θ)
@@ -138,8 +138,8 @@ class BetaDeformationCalculator:
             Volume of the shape
         """
         # Volume integral in spherical coordinates
-        integrand = radius ** 2 * np.sin(theta)
-        volume = simpson(integrand, x=theta) * 2 * np.pi
+        integrand = radius ** 3 * np.sin(theta)
+        volume = simpson(integrand, x=theta) * 2 / 3 * np.pi
 
         return volume
 
