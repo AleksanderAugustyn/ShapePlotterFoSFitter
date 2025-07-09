@@ -209,6 +209,8 @@ class FoSShapePlotter:
         self.ax_text = None
         self.line_fos = None
         self.line_fos_mirror = None
+        self.line_fos_spherical = None
+        self.line_fos_spherical_mirror = None
         self.line_beta = None
         self.line_beta_mirror = None
         self.reference_sphere_line = None
@@ -286,6 +288,10 @@ class FoSShapePlotter:
         # Plot the FoS shape and its mirror
         self.line_fos, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape (normalized)', linewidth=2)
         self.line_fos_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
+
+        # Plot the FoS shape in spherical coordinates
+        self.line_fos_spherical, = self.ax_plot.plot([], [], 'y--', label='FoS shape (spherical)', linewidth=1.5)
+        self.line_fos_spherical_mirror, = self.ax_plot.plot([], [], 'y--', linewidth=1.5)
 
         # Plot the beta shape and its mirror
         self.line_beta, = self.ax_plot.plot([], [], 'r--', label='Beta shape (normalized)', linewidth=2, alpha=0.7)
@@ -486,18 +492,26 @@ class FoSShapePlotter:
         self.line_fos.set_data(z_fos, rho_fos)
         self.line_fos_mirror.set_data(z_fos, -rho_fos)
 
-        # Update beta shape lines
-        # First, convert z_fos, rho_fos to spherical coordinates
-
+        # Update beta shape lines and spherical FoS shape lines
+        beta_volume: float = 0.0
         try:
+            # First, convert z_fos, rho_fos to spherical coordinates
             cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_fos, rho_points=rho_fos)
             theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=360)
+            y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=360)
 
             # Validate the conversion
             validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=180)
             conversion_error = validation['mean_error'] * 100  # Convert to percentage
             if conversion_error > 5.0:
                 print(f"Warning: Conversion error is high ({conversion_error:.2f}%)")
+
+            # Update spherical FoS shape lines
+            # For plotting, we need to flip x and y since our original is (z, rho)
+            # In the converter, x = r sin(θ) and y = r cos(θ)
+            # But we want z on the horizontal axis and rho on vertical
+            self.line_fos_spherical.set_data(x_fos, y_fos)
+            self.line_fos_spherical_mirror.set_data(x_fos, -y_fos)
 
             # Calculate beta parameters
             spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
