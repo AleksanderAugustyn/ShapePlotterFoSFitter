@@ -21,8 +21,8 @@ matplotlib.use('TkAgg')
 @dataclass
 class FoSParameters:
     """Class to store Fourier-over-Spheroid shape parameters."""
-    protons: int
-    neutrons: int
+    protons: int = 92
+    neutrons: int = 144
     c_elongation: float = 1.0  # elongation
     a3: float = 0.0  # reflection asymmetry
     a4: float = 0.0  # neck parameter
@@ -30,6 +30,7 @@ class FoSParameters:
     a6: float = 0.0  # higher order parameter
     q2: float = 0.0  # entangled parameter: c = q2 + 1.0 + 1.5 * a4
     r0_constant: float = 1.16  # Radius constant in fm
+    max_beta: int = 12  # Maximum number of beta parameters used for fitting
 
     @property
     def nucleons(self) -> int:
@@ -229,6 +230,7 @@ class FoSShapePlotter:
         self.slider_a4 = None
         self.slider_a5 = None
         self.slider_a6 = None
+        self.slider_max_beta = None
 
         # Buttons
         self.reset_button = None
@@ -352,6 +354,10 @@ class FoSShapePlotter:
         ax_a6 = plt.axes((0.25, first_slider_y + 7 * slider_spacing, 0.5, 0.03))
         self.slider_a6 = Slider(ax=ax_a6, label='a₆', valmin=-0.3, valmax=0.3, valinit=self.initial_a6, valstep=0.01)
 
+        # Create a slider for maximum beta value
+        ax_max_beta = plt.axes((0.25, first_slider_y + 8 * slider_spacing, 0.5, 0.03))
+        self.slider_max_beta = Slider(ax=ax_max_beta, label='Max Betas Used For Fit', valmin=1.0, valmax=36.0, valinit=12.0, valstep=1.0)
+
         # Style font sizes for all sliders
         for slider in [self.slider_z, self.slider_n, self.slider_c, self.slider_q2,
                        self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6]:
@@ -410,6 +416,7 @@ class FoSShapePlotter:
         self.slider_a4.on_changed(self.on_a4_changed)
         self.slider_a5.on_changed(self.update_plot)
         self.slider_a6.on_changed(self.update_plot)
+        self.slider_max_beta.on_changed(self.update_plot)
 
         # Connect button handlers
         self.reset_button.on_clicked(self.reset_values)
@@ -524,7 +531,8 @@ class FoSShapePlotter:
 
             # Calculate beta parameters
             spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
-            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=32)
+            l_max_value = int(self.slider_max_beta.val)
+            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=l_max_value)
 
             # Calculate the beta shape coordinates
             theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta_parameters)
