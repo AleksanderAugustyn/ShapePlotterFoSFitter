@@ -228,11 +228,11 @@ class CylindricalToSphericalConverter:
                 # Check if the calculated ρ matches the interpolated ρ(z)
                 rho_expected = self.rho_of_z(z)
                 if rho_expected > 0:
-                    error = abs(rho - rho_expected) / rho_expected
+                    error = np.square(rho - rho_expected)
                     errors.append(error)
 
         return {
-            'mean_error': np.mean(errors) if errors else 0,
+            'root_mean_squared_error': np.sqrt(np.mean(errors)) if errors else 0,
             'max_error': np.max(errors) if errors else 0,
             'n_valid_points': len(errors),
             'n_failed_points': n_samples - len(errors)

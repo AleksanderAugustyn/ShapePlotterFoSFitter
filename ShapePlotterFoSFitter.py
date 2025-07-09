@@ -491,7 +491,7 @@ class FoSShapePlotter:
 
         # Calculate shape with theoretical shift
         z_fos, rho_fos = calculator.calculate_shape()
-        radius_from_fos: np.ndarray = np.sqrt(z_fos ** 2 + rho_fos ** 2)
+        # radius_from_fos: np.ndarray = np.sqrt(z_fos ** 2 + rho_fos ** 2)
 
         # Update FoS shape lines
         self.line_fos.set_data(z_fos, rho_fos)
@@ -503,7 +503,7 @@ class FoSShapePlotter:
         theta_fos: np.ndarray = np.array([])
         radius_beta: np.ndarray = np.array([])
         theta_beta: np.ndarray = np.array([])
-        rmse_spherical_fit: float = 0.0
+        conversion_root_mean_squared_error: float = 0.0
         rmse_beta_fit: float = 0.0
         try:
             # First, convert z_fos, rho_fos to spherical coordinates
@@ -512,10 +512,8 @@ class FoSShapePlotter:
             y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=720)
 
             # Validate the conversion
-            validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=360)
-            conversion_error = validation['mean_error'] * 100  # Convert to percentage
-            if conversion_error > 5.0:
-                print(f"Warning: Conversion error is high ({conversion_error:.2f}%)")
+            validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=720)
+            conversion_root_mean_squared_error = validation['root_mean_squared_error']
 
             # Update spherical FoS shape lines
             # For plotting, we need to flip x and y since our original is (z, rho)
@@ -547,8 +545,7 @@ class FoSShapePlotter:
             beta_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
 
             # Calculate RMSE for spherical fit
-            rmse_spherical_fit = np.sqrt(np.mean((radius_fos - radius_from_fos) ** 2))
-            rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_from_fos) ** 2))
+            rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_fos) ** 2))
 
             # Get significant beta parameters
             beta_strings = [f"β_{l:<2} = {val:.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) > 0.001]
@@ -635,7 +632,7 @@ class FoSShapePlotter:
             f"Neck radius: {neck_radius:.2f} fm\n"
             f"Calculated c (elongation): {max_z / current_params.radius0:.3f}\n"
             f"\nFit information:\n"
-            f"RMSE (Spherical Fit): {rmse_spherical_fit:.3f} fm\n"
+            f"RMSE (Spherical Fit): {conversion_root_mean_squared_error:.3f} fm\n"
             f"RMSE (Beta Fit): {rmse_beta_fit:.3f} fm\n"
             f"\nSignificant Beta Parameters (>0.001):\n{significant_beta_parameters}"
         )
