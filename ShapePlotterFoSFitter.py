@@ -57,7 +57,7 @@ class FoSParameters:
     def z_sh(self) -> float:
         """Shift to place the center of mass at origin."""
         # From the paper: z_sh = -3/(4π) z_0 (a_3 - a_5/2 + ...)
-        # Error in the paper, should be: +3/(2π) z_0 (a_3 - a_5/2 + ...)
+        # Error in the paper should be: +3/(2π) z_0 (a_3 - a_5/2 + ...)
         return 3.0 / (2.0 * np.pi) * self.z0 * (self.a3 - self.a5 / 2.0)
 
 
@@ -70,10 +70,14 @@ class FoSShapeCalculator:
     def f_function(self, u: np.ndarray) -> np.ndarray:
         """
         Calculate the shape function f(u).
-
         # From paper: f(u) = 1 - u² - Σ[a_{2k} cos((k-1/2)πu) + a_{2k+1} sin(kπu)]
-        # Error in the paper, should be:
-        f(u) = 1 - u² - Σ[a_{2k} cos((2k-1/2)πu) + a_{2k+1} sin(kπu)]
+        # Error in the paper, should be: f(u) = 1 - u² - Σ[a_{2k} cos((2k-1/2)πu) + a_{2k+1} sin(kπu)]
+
+        Args:
+            u: normalized axial coordinate (z - z_sh) / z0
+
+        Returns:
+            f: shape function values
         """
         # Base spherical shape
         f = 1.0 - u ** 2.0
@@ -139,6 +143,13 @@ class FoSShapeCalculator:
         """
         Calculate volume by numerical integration.
         V = π ∫ ρ²(z) dz
+
+        Args:
+            z: axial coordinates
+            rho: radial coordinates
+
+        Returns:
+            volume: calculated volume of the shape in fm³
         """
         # Use trapezoidal rule
         dz = np.diff(z)
