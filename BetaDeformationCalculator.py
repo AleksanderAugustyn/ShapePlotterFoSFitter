@@ -143,6 +143,30 @@ class BetaDeformationCalculator:
 
         return volume
 
+    @staticmethod
+    def calculate_center_of_mass_in_spherical_coordinates(radius: np.ndarray, theta: np.ndarray) -> float:
+        """
+        Calculate the center of mass in spherical coordinates.
+
+        cm = ∫ r(θ)² sin(θ) dr dθ dφ / ∫ r(θ) sin(θ) dr dθ dφ
+
+        Args:
+            radius: Array of radial distances r(θ)
+            theta: Array of polar angles θ
+
+        Returns:
+            Center of mass in spherical coordinates
+        """
+        # Numerator: 2π ∫ r(θ)³ sin(θ) cos(θ) dr dθ = 1/2 π r(θ)⁴ ∫ sin(θ) cos(θ) dθ
+        numerator = simpson(1 / 2 * np.pi * radius ** 4 * np.sin(theta) * np.cos(theta), x=theta)
+
+        # Denominator: Volume integral = 2π ∫ r(θ)² sin(θ) dr dθ
+        denominator = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius, theta)
+
+        if denominator == 0:
+            return 0.0
+        return numerator / denominator
+
     def reconstruct_shape(self, beta: Dict[int, float], n_theta: int = 720) -> Tuple[np.ndarray, np.ndarray]:
         """
         Reconstruct the shape from beta parameters.

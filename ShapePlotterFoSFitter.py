@@ -214,9 +214,11 @@ class FoSShapePlotter:
         self.line_beta = None
         self.line_beta_mirror = None
         self.reference_sphere_line = None
-        self.cm_point = None
-        self.cm_calculated = None
+        self.cm_reference_point = None
+        self.cm_fos_calculated = None
         self.cm_theoretical = None
+        self.cm_spherical_fit_calculated = None
+        self.cm_beta_fit_calculated = None
 
         # Sliders
         self.slider_z = None
@@ -300,15 +302,17 @@ class FoSShapePlotter:
         self.reference_sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray', alpha=0.5, label=f'R₀={r0:.2f} fm')
 
         # Plot expected center of mass (at origin)
-        self.cm_point, = self.ax_plot.plot(0, 0, 'ro', label='Expected CM (origin)', markersize=8)
+        self.cm_reference_point, = self.ax_plot.plot(0, 0, 'ro', label='Expected CM (Origin)', markersize=8, alpha=0.7)
 
         # Plot theoretical shift CM
-        self.cm_theoretical, = self.ax_plot.plot(0, 0, 'b^', label='CM with theoretical shift', markersize=8)
+        self.cm_theoretical, = self.ax_plot.plot(0, 0, 'b^', label='CM before theoretical shift', markersize=8, alpha=0.7)
 
         # Plot the calculated center of mass
-        self.cm_calculated, = self.ax_plot.plot(0, 0, 'go', label='Calculated CM', markersize=8)
+        self.cm_fos_calculated, = self.ax_plot.plot(0, 0, 'go', label='Calculated CM (FoS)', markersize=8, alpha=0.7)
+        self.cm_spherical_fit_calculated, = self.ax_plot.plot(0, 0, 'ms', label='Calculated CM (Spherical Fit)', markersize=8, alpha=0.7)
+        self.cm_beta_fit_calculated, = self.ax_plot.plot(0, 0, 'cs', label='Calculated CM (Beta Fit)', markersize=8, alpha=0.7)
 
-        self.ax_plot.legend(loc='upper right')
+        self.ax_plot.legend(loc='upper right', bbox_to_anchor=(0, 1))
 
     def setup_controls(self):
         """Set up all UI controls."""
@@ -494,6 +498,10 @@ class FoSShapePlotter:
 
         # Update beta shape lines and spherical FoS shape lines
         beta_volume: float = 0.0
+        radius_fos: np.ndarray = np.array([])
+        theta_fos: np.ndarray = np.array([])
+        radius_beta: np.ndarray = np.array([])
+        theta_beta: np.ndarray = np.array([])
         try:
             # First, convert z_fos, rho_fos to spherical coordinates
             cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_fos, rho_points=rho_fos)
@@ -543,13 +551,18 @@ class FoSShapePlotter:
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
-        self.cm_calculated.set_data([calculator.calculate_center_of_mass(z_fos, rho_fos)], [0])
+        center_of_mass_fos = calculator.calculate_center_of_mass(z_fos, rho_fos)
+        self.cm_fos_calculated.set_data([center_of_mass_fos], [0])
+        center_of_mass_spherical_fit = BetaDeformationCalculator.calculate_center_of_mass_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
+        self.cm_spherical_fit_calculated.set_data([center_of_mass_spherical_fit], [0])
+        center_of_mass_beta_fit = BetaDeformationCalculator.calculate_center_of_mass_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
+        self.cm_beta_fit_calculated.set_data([center_of_mass_beta_fit], [0])
 
         # Calculate the ratio of calculated CM to theoretical shift, if NaN, set to 0
-        cm_ratio = (
-            calculator.calculate_center_of_mass(z_fos, rho_fos) / current_params.z_sh
-            if current_params.z_sh != 0 else 0.0
-        )
+        # cm_ratio = (
+        #     calculator.calculate_center_of_mass(z_fos, rho_fos) / current_params.z_sh
+        #     if current_params.z_sh != 0 else 0.0
+        # )
 
         # Update a reference sphere
         theta_reference_sphere = np.linspace(0, 2 * np.pi, 200)
@@ -580,14 +593,16 @@ class FoSShapePlotter:
         info_text = (
             f"R₀ = {current_params.radius0:.3f} fm\n"
             f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
-            f"\nShift Information:\n"
-            f"Theoretical z_shift = {current_params.z_sh:.3f} fm\n"
-            f"\nCenter of Mass:\n"
-            f"Calculated CM: {calculator.calculate_center_of_mass(z_fos, rho_fos):.3f} fm\n"
-            f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nParameter Relations:\n"
             f"c = q₂ + 1.0 + 1.5a₄\n"
             f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
+            f"\nShift Information:\n"
+            f"Theoretical z_shift = {current_params.z_sh:.3f} fm\n"
+            f"\nCenter of Mass:\n"
+            f"Calculated CM (FoS): {center_of_mass_fos:.3f} fm\n"
+            f"Calculated CM (Spherical Fit): {center_of_mass_spherical_fit:.3f} fm\n"
+            f"Calculated CM (Beta Fit): {center_of_mass_beta_fit:.3f} fm\n"
+            # f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference sphere volume: {current_params.sphere_volume:.3f} fm³\n"
             f"FoS shape volume: {shape_volume:.3f} fm³\n"
@@ -595,7 +610,8 @@ class FoSShapePlotter:
             f"\nShape dimensions:\n"
             f"Max z_fos: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
-            f"Neck radius: {neck_radius:.2f} fm"
+            f"Neck radius: {neck_radius:.2f} fm\n"
+            f"Calculated c (elongation): {max_z / current_params.radius0:.3f}\n"
         )
 
         # Remove old text if it exists
@@ -613,8 +629,8 @@ class FoSShapePlotter:
             f'A={current_params.nucleons})', fontsize=14
         )
 
-        # Update legend (moved to an upper left since a text is now on the right)
-        self.ax_plot.legend(loc='upper left')
+        # Update legend
+        self.ax_plot.legend(loc='upper right', bbox_to_anchor=(-0.1, 1))
 
         self.fig.canvas.draw_idle()
 
