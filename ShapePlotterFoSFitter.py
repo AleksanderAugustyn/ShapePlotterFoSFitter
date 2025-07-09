@@ -606,7 +606,7 @@ class FoSShapePlotter:
         # Add new text to the right-side text area
         self.ax_text.text(0.05, 0.95, info_text, transform=self.ax_text.transAxes,
                           fontsize=10, verticalalignment='top', horizontalalignment='left',
-                          bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+                          bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5})
 
         # Update title
         self.ax_plot.set_title(
