@@ -497,11 +497,11 @@ class FoSShapePlotter:
         try:
             # First, convert z_fos, rho_fos to spherical coordinates
             cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_fos, rho_points=rho_fos)
-            theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=360)
-            y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=360)
+            theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=720)
+            y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=720)
 
             # Validate the conversion
-            validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=180)
+            validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=360)
             conversion_error = validation['mean_error'] * 100  # Convert to percentage
             if conversion_error > 5.0:
                 print(f"Warning: Conversion error is high ({conversion_error:.2f}%)")

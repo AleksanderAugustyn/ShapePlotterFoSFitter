@@ -143,7 +143,7 @@ class BetaDeformationCalculator:
 
         return volume
 
-    def reconstruct_shape(self, beta: Dict[int, float], n_theta: int = 180) -> Tuple[np.ndarray, np.ndarray]:
+    def reconstruct_shape(self, beta: Dict[int, float], n_theta: int = 720) -> Tuple[np.ndarray, np.ndarray]:
         """
         Reconstruct the shape from beta parameters.
 
@@ -154,11 +154,11 @@ class BetaDeformationCalculator:
             n_theta: Number of theta points for reconstruction
 
         Returns:
-            theta_recon: Array of theta values
-            r_recon: Array of reconstructed radii
+            theta_reconstructed: Array of theta values
+            radius_reconstructed: Array of reconstructed radii
         """
-        theta_recon = np.linspace(0, np.pi, n_theta)
-        r_recon = np.ones_like(theta_recon) * self.radius0
+        theta_reconstructed = np.linspace(0, np.pi, n_theta)
+        radius_pre_normalization = np.ones_like(theta_reconstructed) * self.radius0
 
         for l, beta_l in beta.items():
             if l == 0:
@@ -166,9 +166,19 @@ class BetaDeformationCalculator:
 
             # Get Y_l0 at reconstruction points
             phi = 0
-            ylm = sph_harm_y(l, 0, theta_recon, phi).real
+            ylm = sph_harm_y(l, 0, theta_reconstructed, phi).real
 
             # Add contribution
-            r_recon += self.radius0 * beta[l] * ylm
+            radius_pre_normalization += self.radius0 * beta[l] * ylm
 
-        return theta_recon, r_recon
+        # Calculate volume fixing factor
+        volume_pre_normalization = self.calculate_volume_in_spherical_coordinates(radius_pre_normalization, theta_reconstructed)
+        sphere_volume = (4 / 3) * np.pi * self.radius0 ** 3
+        volume_fixing_factor = sphere_volume / volume_pre_normalization
+
+        # Calculate radius fixing factor
+        radius_fixing_factor = volume_fixing_factor ** (1 / 3)
+
+        radius_reconstructed = radius_fixing_factor * radius_pre_normalization
+
+        return theta_reconstructed, radius_reconstructed
