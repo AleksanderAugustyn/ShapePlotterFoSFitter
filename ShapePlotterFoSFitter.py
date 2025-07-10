@@ -319,18 +319,18 @@ class FoSShapePlotter:
 
         self.ax_plot.legend(loc='upper right', bbox_to_anchor=(0, 1))
 
-    def create_slider_with_buttons(self, slider_name, y_pos, label, valmin, valmax, valinit, valstep):
+    def create_slider_with_buttons(self, slider_name, y_position, label, value_minimal, value_maximal, value_initial, value_step):
         """Create a slider with decrement and increment buttons."""
-        # Create decrement button (left side)
-        dec_ax = plt.axes((0.20, y_pos, 0.02, 0.03))
+        # Create a decrement button (left side)
+        dec_ax = plt.axes((0.20, y_position, 0.02, 0.03))
         dec_button = Button(dec_ax, '-')
 
         # Create the slider
-        slider_ax = plt.axes((0.25, y_pos, 0.5, 0.03))
-        slider = Slider(ax=slider_ax, label=label, valmin=valmin, valmax=valmax, valinit=valinit, valstep=valstep)
+        slider_ax = plt.axes((0.25, y_position, 0.5, 0.03))
+        slider = Slider(ax=slider_ax, label=label, valmin=value_minimal, valmax=value_maximal, valinit=value_initial, valstep=value_step)
 
-        # Create increment button (right side)
-        inc_ax = plt.axes((0.78, y_pos, 0.02, 0.03))
+        # Create an increment button (right side)
+        inc_ax = plt.axes((0.78, y_position, 0.02, 0.03))
         inc_button = Button(inc_ax, '+')
 
         # Store buttons for later reference
@@ -439,19 +439,19 @@ class FoSShapePlotter:
         """Set up event handlers for slider increment/decrement buttons."""
 
         # Helper function to create increment/decrement handlers
-        def create_increment_handler(slider):
-            def handler(event):
-                current_val = slider.val
-                new_val = min(current_val + slider.valstep, slider.valmax)
-                slider.set_val(new_val)
+        def create_increment_handler(slider_val):
+            def handler(_):
+                current_val = slider_val.val
+                new_val = min(current_val + slider_val.valstep, slider_val.valmax)
+                slider_val.set_val(new_val)
 
             return handler
 
-        def create_decrement_handler(slider):
-            def handler(event):
-                current_val = slider.val
-                new_val = max(current_val - slider.valstep, slider.valmin)
-                slider.set_val(new_val)
+        def create_decrement_handler(slider_val):
+            def handler(_):
+                current_val = slider_val.val
+                new_val = max(current_val - slider_val.valstep, slider_val.valmin)
+                slider_val.set_val(new_val)
 
             return handler
 

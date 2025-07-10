@@ -148,7 +148,7 @@ class BetaDeformationCalculator:
         """
         Calculate the center of mass in spherical coordinates.
 
-        cm = ∫ r(θ)² sin(θ) dr dθ dφ / ∫ r(θ) sin(θ) dr dθ dφ
+        CM = ∫ r(θ)² sin(θ) dr dθ dφ / ∫ r(θ) sin(θ) dr dθ dφ
 
         Args:
             radius: Array of radial distances r(θ)
