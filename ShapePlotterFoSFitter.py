@@ -596,7 +596,7 @@ class FoSShapePlotter:
             # Get significant beta parameters
             beta_strings = [f"β_{l:<2} = {val:.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) > 0.001]
             if not beta_strings:
-                significant_beta_parameters = "None"
+                significant_beta_parameters = "No significant beta parameters found."
             else:
                 paired_betas = []
                 for i in range(0, len(beta_strings), 2):
