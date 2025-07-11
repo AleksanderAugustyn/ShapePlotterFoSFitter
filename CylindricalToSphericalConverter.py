@@ -88,9 +88,9 @@ class CylindricalToSphericalConverter:
         # Handle special cases
         if theta == 0:  # North Pole
             return abs(self.z_max)
-        elif theta == np.pi:  # South Pole
+        if theta == np.pi:  # South Pole
             return abs(self.z_min)
-        elif abs(theta - np.pi / 2) < 1e-10:  # Equator
+        if abs(theta - np.pi / 2) < 1e-10:  # Equator
             return self.rho_of_z(0.0)
 
         # For general θ, we need to solve: r sin(θ) = ρ(r cos(θ))
