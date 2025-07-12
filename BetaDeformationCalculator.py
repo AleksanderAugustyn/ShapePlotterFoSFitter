@@ -63,7 +63,7 @@ class BetaDeformationCalculator:
         if key not in self._ylm_cache:
             # sph_harm_y uses (l, m, theta, phi) convention
             # For m=0, the result is independent of phi
-            phi = 0.0
+            phi: float = 0.0
             self._ylm_cache[key] = sph_harm_y(l, m, self.theta, phi).real
         return self._ylm_cache[key]
 
@@ -120,7 +120,7 @@ class BetaDeformationCalculator:
         else:
             l_values = [l for l in beta.keys() if 0 < l <= l_max]
 
-        sum_squared = sum(beta[l] ** 2 for l in l_values)
+        sum_squared: float = sum(beta[l] ** 2 for l in l_values)
         return np.sqrt(sum_squared)
 
     @staticmethod
