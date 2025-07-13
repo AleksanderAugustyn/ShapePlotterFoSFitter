@@ -139,7 +139,7 @@ class BetaDeformationCalculator:
         """
         # Volume integral in spherical coordinates
         integrand = radius ** 3 * np.sin(theta)
-        volume = simpson(integrand, x=theta) * 2 / 3 * np.pi
+        volume: float = simpson(integrand, x=theta) * 2 / 3 * np.pi
 
         return volume
 
@@ -196,12 +196,12 @@ class BetaDeformationCalculator:
             radius_pre_normalization += self.radius0 * beta[l] * ylm
 
         # Calculate volume fixing factor
-        volume_pre_normalization = self.calculate_volume_in_spherical_coordinates(radius_pre_normalization, theta_reconstructed)
-        sphere_volume = (4 / 3) * np.pi * self.radius0 ** 3
-        volume_fixing_factor = sphere_volume / volume_pre_normalization
+        volume_pre_normalization: float = self.calculate_volume_in_spherical_coordinates(radius_pre_normalization, theta_reconstructed)
+        sphere_volume: float = (4 / 3) * np.pi * self.radius0 ** 3
+        volume_fixing_factor: float = sphere_volume / volume_pre_normalization
 
         # Calculate radius fixing factor
-        radius_fixing_factor = volume_fixing_factor ** (1 / 3)
+        radius_fixing_factor: float = volume_fixing_factor ** (1 / 3)
 
         radius_reconstructed = radius_fixing_factor * radius_pre_normalization
 
