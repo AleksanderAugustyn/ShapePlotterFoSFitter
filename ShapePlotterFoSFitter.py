@@ -84,10 +84,10 @@ class FoSShapeCalculator:
             f: shape function values
         """
         # Base spherical shape
-        f = 1.0 - u ** 2.0
+        f:float = 1.0 - u ** 2.0
 
         # Sum Fourier terms
-        sum_terms = 0.0
+        sum_terms:float = 0.0
 
         # Add Fourier terms
         # k=1: a2 * cos((2 - 1) / 2 * π * u) + a3 sin(1 * π * u)
@@ -118,8 +118,8 @@ class FoSShapeCalculator:
             rho: radial coordinates
         """
         # Calculate shape without a shift first
-        z_min = -self.params.z0 + self.params.z_sh
-        z_max = self.params.z0 + self.params.z_sh
+        z_min:float = -self.params.z0 + self.params.z_sh
+        z_max:float = self.params.z0 + self.params.z_sh
         z = np.linspace(z_min, z_max, n_points)
 
         # Calculate normalized u with shift in z

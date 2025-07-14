@@ -63,7 +63,7 @@ class BetaDeformationCalculator:
         if key not in self._ylm_cache:
             # sph_harm_y uses (l, m, theta, phi) convention
             # For m=0, the result is independent of phi
-            phi = 0.0
+            phi: float = 0.0
             self._ylm_cache[key] = sph_harm_y(l, m, self.theta, phi).real
         return self._ylm_cache[key]
 
@@ -120,7 +120,7 @@ class BetaDeformationCalculator:
         else:
             l_values = [l for l in beta.keys() if 0 < l <= l_max]
 
-        sum_squared = sum(beta[l] ** 2 for l in l_values)
+        sum_squared: float = sum(beta[l] ** 2 for l in l_values)
         return np.sqrt(sum_squared)
 
     @staticmethod
@@ -139,7 +139,7 @@ class BetaDeformationCalculator:
         """
         # Volume integral in spherical coordinates
         integrand = radius ** 3 * np.sin(theta)
-        volume = simpson(integrand, x=theta) * 2 / 3 * np.pi
+        volume: float = simpson(integrand, x=theta) * 2 / 3 * np.pi
 
         return volume
 
@@ -196,12 +196,12 @@ class BetaDeformationCalculator:
             radius_pre_normalization += self.radius0 * beta[l] * ylm
 
         # Calculate volume fixing factor
-        volume_pre_normalization = self.calculate_volume_in_spherical_coordinates(radius_pre_normalization, theta_reconstructed)
-        sphere_volume = (4 / 3) * np.pi * self.radius0 ** 3
-        volume_fixing_factor = sphere_volume / volume_pre_normalization
+        volume_pre_normalization: float = self.calculate_volume_in_spherical_coordinates(radius_pre_normalization, theta_reconstructed)
+        sphere_volume: float = (4 / 3) * np.pi * self.radius0 ** 3
+        volume_fixing_factor: float = sphere_volume / volume_pre_normalization
 
         # Calculate radius fixing factor
-        radius_fixing_factor = volume_fixing_factor ** (1 / 3)
+        radius_fixing_factor: float = volume_fixing_factor ** (1 / 3)
 
         radius_reconstructed = radius_fixing_factor * radius_pre_normalization
 
