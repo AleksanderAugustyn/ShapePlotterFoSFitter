@@ -559,7 +559,6 @@ class FoSShapePlotter:
         theta_beta: np.ndarray = np.array([])
         conversion_root_mean_squared_error: float = 0.0
         rmse_beta_fit: float = 0.0
-        is_convertible: bool = True
         is_converted: bool = False
         cumulative_shift: float = 0.0
 
