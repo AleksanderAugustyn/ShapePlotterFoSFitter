@@ -237,3 +237,48 @@ class CylindricalToSphericalConverter:
             'n_valid_points': len(errors),
             'n_failed_points': n_samples - len(errors)
         }
+
+    def is_unambiguously_convertible(self, n_points: int = 720, tolerance: float = 1e-9) -> bool:
+        """
+        Checks if the shape can be unambiguously converted to spherical coordinates.
+
+        The conversion is unambiguous if the shape is "star-shaped" with respect
+        to the origin. This is checked by verifying that the angle theta(z) is
+        a monotonic function of z. This is equivalent to checking the sign of
+        the expression `z * rho'(z) - rho(z)`. For a valid, star-shaped
+        nuclear shape (with z=0 at the center), this expression should always
+        be less than or equal to zero.
+
+        Args:
+            n_points: Number of points along the z-axis to check.
+            tolerance: A small numerical tolerance for the check.
+
+        Returns:
+            True if the shape is unambiguously convertible, False otherwise.
+        """
+        # Create a set of z-points to check, avoiding the very ends where rho=0
+        # and the derivative might be ill-defined.
+        epsilon = 1e-6
+        # Ensure z_min and z_max are valid before creating linspace
+        if self.z_min >= self.z_max:
+            return True  # Treat empty or point shapes as unambiguously convertible.
+
+        z_check_points = np.linspace(self.z_min + epsilon, self.z_max - epsilon, n_points)
+
+        # Use a small step for numerical differentiation
+        h = 1e-6
+
+        # Calculate rho and its derivative at the check points
+        rho_vals = self.rho_interp(z_check_points)
+        # Use central difference for the derivative
+        rho_prime_vals = (self.rho_interp(z_check_points + h) - self.rho_interp(z_check_points - h)) / (2 * h)
+
+        # Calculate the test expression: z * rho'(z) - rho(z)
+        test_values = z_check_points * rho_prime_vals - rho_vals
+
+        # The shape is unambiguously convertible if all test values are <= 0.
+        # We allow for a small positive tolerance due to numerical precision.
+        if np.any(test_values > tolerance):
+            return False
+
+        return True

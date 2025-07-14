@@ -307,15 +307,15 @@ class FoSShapePlotter:
         self.reference_sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray', alpha=0.5, label=f'R₀={r0:.2f} fm')
 
         # Plot expected center of mass (at origin)
-        self.cm_reference_point, = self.ax_plot.plot(0, 0, 'ro', label='Expected CM (Origin)', markersize=8, alpha=0.7)
+        self.cm_reference_point, = self.ax_plot.plot(0, 0, 'ro', label='Expected CM (Origin)', markersize=6, alpha=0.7)
 
         # Plot theoretical shift CM
-        self.cm_theoretical, = self.ax_plot.plot(0, 0, 'b^', label='CM before theoretical shift', markersize=8, alpha=0.7)
+        self.cm_theoretical, = self.ax_plot.plot(0, 0, 'b^', label='CM before theoretical shift', markersize=6, alpha=0.7)
 
         # Plot the calculated center of mass
-        self.cm_fos_calculated, = self.ax_plot.plot(0, 0, 'go', label='Calculated CM (FoS)', markersize=8, alpha=0.7)
-        self.cm_spherical_fit_calculated, = self.ax_plot.plot(0, 0, 'ms', label='Calculated CM (Spherical Fit)', markersize=8, alpha=0.7)
-        self.cm_beta_fit_calculated, = self.ax_plot.plot(0, 0, 'cs', label='Calculated CM (Beta Fit)', markersize=8, alpha=0.7)
+        self.cm_fos_calculated, = self.ax_plot.plot(0, 0, 'go', label='Calculated CM (FoS)', markersize=6, alpha=0.7)
+        self.cm_spherical_fit_calculated, = self.ax_plot.plot(0, 0, 'ms', label='Calculated CM (Spherical Fit)', markersize=6, alpha=0.7)
+        self.cm_beta_fit_calculated, = self.ax_plot.plot(0, 0, 'cs', label='Calculated CM (Beta Fit)', markersize=6, alpha=0.7)
 
         self.ax_plot.legend(loc='upper right', bbox_to_anchor=(0, 1))
 
@@ -550,9 +550,15 @@ class FoSShapePlotter:
         theta_beta: np.ndarray = np.array([])
         conversion_root_mean_squared_error: float = 0.0
         rmse_beta_fit: float = 0.0
+        is_convertible: bool = True
         try:
             # First, convert z_fos, rho_fos to spherical coordinates
             cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_fos, rho_points=rho_fos)
+
+            # Check if the shape can be unambiguously converted
+            if not cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=720, tolerance=1e-9):
+                is_convertible = False
+
             theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=720)
             y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=720)
 
@@ -678,6 +684,7 @@ class FoSShapePlotter:
             f"Neck radius: {neck_radius:.2f} fm\n"
             f"Calculated c (elongation): {max_z / current_params.radius0:.3f}\n"
             f"\nFit information:\n"
+            f"Shape is unambiguously convertible: {'Yes' if is_convertible else 'No'}\n"
             f"RMSE (Spherical Coords Conversion): {conversion_root_mean_squared_error:.3f} fm\n"
             f"RMSE (Beta Parametrization Fit): {rmse_beta_fit:.3f} fm\n"
             f"\nSignificant Beta Parameters (>0.001):\n{significant_beta_parameters}"
