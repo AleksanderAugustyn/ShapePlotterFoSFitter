@@ -749,7 +749,7 @@ class FoSShapePlotter:
             artist.remove()
 
         # Add new text to the right-side text area
-        self.ax_text.text(0.05, 1.1, info_text, transform=self.ax_text.transAxes,
+        self.ax_text.text(0.05, 1.2, info_text, transform=self.ax_text.transAxes,
                           fontsize=10, verticalalignment='top', horizontalalignment='left',
                           bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
