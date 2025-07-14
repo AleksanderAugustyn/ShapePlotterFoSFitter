@@ -84,7 +84,7 @@ class FoSShapeCalculator:
             f: shape function values
         """
         # Base spherical shape
-        f:float = 1.0 - u ** 2.0
+        f: np.ndarray = 1.0 - u ** 2.0
 
         # Sum Fourier terms
         sum_terms:float = 0.0
