@@ -212,6 +212,8 @@ class FoSShapePlotter:
         self.line_fos_mirror = None
         self.line_fos_spherical = None
         self.line_fos_spherical_mirror = None
+        self.line_fos_spherical_shifted_for_conversion = None
+        self.line_fos_spherical_shifted_for_conversion_mirror = None
         self.line_beta = None
         self.line_beta_mirror = None
         self.reference_sphere_line = None
@@ -296,9 +298,13 @@ class FoSShapePlotter:
         self.line_fos, = self.ax_plot.plot(z, rho, 'b-', label='FoS shape (normalized)', linewidth=2)
         self.line_fos_mirror, = self.ax_plot.plot(z, -rho, 'b-', linewidth=2)
 
-        # Plot the FoS shape in spherical coordinates
+        # Plot the FoS shape with CM in the origin in spherical coordinates
         self.line_fos_spherical, = self.ax_plot.plot([], [], 'y--', label='FoS shape (spherical)', linewidth=1.5)
         self.line_fos_spherical_mirror, = self.ax_plot.plot([], [], 'y--', linewidth=1.5)
+
+        # Plot the FoS shape with CM shifted for conversion
+        self.line_fos_spherical_shifted_for_conversion, = self.ax_plot.plot([], [], 'g--', label='FoS shape (spherical, shifted for conversion)', linewidth=1.5, alpha=0.5)
+        self.line_fos_spherical_shifted_for_conversion_mirror, = self.ax_plot.plot([], [], 'g--', linewidth=1.5, alpha=0.5)
 
         # Plot the beta shape and its mirror
         self.line_beta, = self.ax_plot.plot([], [], 'r--', label='Beta shape (normalized)', linewidth=2, alpha=0.7)
@@ -552,6 +558,7 @@ class FoSShapePlotter:
         conversion_root_mean_squared_error: float = 0.0
         rmse_beta_fit: float = 0.0
         is_convertible: bool = True
+        is_converted: bool = False
         cumulative_shift: float = 0.0
 
         try:
@@ -581,6 +588,7 @@ class FoSShapePlotter:
                     cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
                     if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=720, tolerance=1e-9):
                         is_convertible = True
+                        is_converted = True
                         break
 
             # If the shape is now convertible (either originally or after shifting), proceed with conversion
@@ -597,9 +605,13 @@ class FoSShapePlotter:
                 if abs(cumulative_shift) > 1e-10:
                     self.line_fos_spherical.set_data(x_fos - cumulative_shift, y_fos)
                     self.line_fos_spherical_mirror.set_data(x_fos - cumulative_shift, -y_fos)
+                    self.line_fos_spherical_shifted_for_conversion.set_data(x_fos, y_fos)
+                    self.line_fos_spherical_shifted_for_conversion_mirror.set_data(x_fos, -y_fos)
                 else:
                     self.line_fos_spherical.set_data(x_fos, y_fos)
                     self.line_fos_spherical_mirror.set_data(x_fos, -y_fos)
+                    self.line_fos_spherical_shifted_for_conversion.set_data([], [])
+                    self.line_fos_spherical_shifted_for_conversion_mirror.set_data([], [])
 
                 # Calculate beta parameters
                 spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
@@ -706,10 +718,12 @@ class FoSShapePlotter:
             f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
             f"\nShift Information:\n"
             f"Theoretical z_shift = {current_params.z_sh:.3f} fm\n"
+            f"Shift needed for conversion: {cumulative_shift:.3f} fm\n"
             f"\nCenter of Mass:\n"
             f"Calculated CM (FoS): {center_of_mass_fos:.3f} fm\n"
             f"Calculated CM (Spherical Fit): {center_of_mass_spherical_fit:.3f} fm\n"
             f"Calculated CM (Beta Fit): {center_of_mass_beta_fit:.3f} fm\n"
+            f"Calculated CM (Spherical Fit, shifted): {center_of_mass_spherical_fit:.3f} fm\n"
             # f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference sphere volume: {current_params.sphere_volume:.3f} fm³\n"
@@ -720,8 +734,9 @@ class FoSShapePlotter:
             f"Max ρ: {max_rho:.2f} fm\n"
             f"Neck radius: {neck_radius:.2f} fm\n"
             f"Calculated c (elongation): {max_z / current_params.radius0:.3f}\n"
+            f"\nConversion Information:\n"
+            f"Shape is originally unambiguously convertible: {'Yes' if not is_converted else 'No'}\n"
             f"\nFit information:\n"
-            f"Shape is unambiguously convertible: {'Yes' if is_convertible else 'No'}\n"
             f"RMSE (Spherical Coords Conversion): {conversion_root_mean_squared_error:.3f} fm\n"
             f"RMSE (Beta Parametrization Fit): {rmse_beta_fit:.3f} fm\n"
             f"\nSignificant Beta Parameters (>0.001):\n{significant_beta_parameters}"
