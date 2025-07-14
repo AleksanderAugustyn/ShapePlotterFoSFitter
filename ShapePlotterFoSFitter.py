@@ -378,7 +378,7 @@ class FoSShapePlotter:
         self.save_button = Button(ax=ax_save, label='Save Plot')
 
         # Create preset buttons
-        preset_labels = ['Sphere', 'Prolate', 'Oblate', 'Pear-shaped', 'Two-center']
+        preset_labels = ['Sphere', 'Prolate', 'Oblate', 'Pear-shaped', 'Two-center', 'Scission']
         for i, label in enumerate(preset_labels):
             ax_preset = plt.axes((0.02, 0.6 - i * 0.06, 0.1, 0.04))
             btn = Button(ax=ax_preset, label=label)
@@ -392,6 +392,7 @@ class FoSShapePlotter:
             2: {'c': 0.7, 'a3': 0.0, 'a4': 0.0, 'a5': 0.0, 'a6': 0.0},  # Oblate
             3: {'c': 1.2, 'a3': 0.2, 'a4': 0.0, 'a5': 0.0, 'a6': 0.0},  # Pear-shaped
             4: {'c': 2.0, 'a3': 0.0, 'a4': 0.5, 'a5': 0.0, 'a6': 0.0},  # Two-center
+            5: {'c': 2.08, 'a3': 0.25, 'a4': 0.72, 'a5': 0.0, 'a6': 0.0}  # Scission
         }
 
         preset = presets[preset_num]
@@ -551,71 +552,107 @@ class FoSShapePlotter:
         conversion_root_mean_squared_error: float = 0.0
         rmse_beta_fit: float = 0.0
         is_convertible: bool = True
+        cumulative_shift: float = 0.0
+
         try:
-            # First, convert z_fos, rho_fos to spherical coordinates
-            cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_fos, rho_points=rho_fos)
+            # Make a copy of the original shape for shifting if needed
+            z_work = z_fos.copy()
 
-            # Check if the shape can be unambiguously converted
-            if not cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=720, tolerance=1e-9):
-                is_convertible = False
+            # First, check if the shape can be unambiguously converted
+            cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
+            is_convertible = cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=720, tolerance=1e-9)
 
-            theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=720)
-            y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=720)
+            # If not convertible, try shifting
+            if not is_convertible:
+                # Determine a shift direction (opposite of z_sh)
+                z_step = 0.1  # fm
+                shift_direction = -1.0 if current_params.z_sh >= 0 else 1.0
 
-            # Validate the conversion
-            validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=720)
-            conversion_root_mean_squared_error = validation['root_mean_squared_error']
+                # The maximum allowed shift is half the z-dimension length
+                z_length = np.max(z_fos) - np.min(z_fos)
+                max_shift = z_length / 2.0
 
-            # Update spherical FoS shape lines
-            # For plotting, we need to flip x and y since our original is (z, rho)
-            # In the converter, x = r sin(θ) and y = r cos(θ)
-            # But we want z on the horizontal axis and rho on vertical
-            self.line_fos_spherical.set_data(x_fos, y_fos)
-            self.line_fos_spherical_mirror.set_data(x_fos, -y_fos)
+                # Try shifting until convertible or reach the limit
+                while abs(cumulative_shift) < max_shift:
+                    cumulative_shift += shift_direction * z_step
+                    z_work = z_fos + cumulative_shift
 
-            # Calculate beta parameters
-            spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
-            l_max_value = int(self.slider_max_beta.val)
-            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=l_max_value)
+                    # Check if now convertible
+                    cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
+                    if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=720, tolerance=1e-9):
+                        is_convertible = True
+                        break
 
-            # Calculate the beta shape coordinates
-            theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta_parameters)
+            # If the shape is now convertible (either originally or after shifting), proceed with conversion
+            if is_convertible:
 
-            # Convert back to Cartesian coordinates
-            # For plotting, we need to flip x and y since our original is (z, rho)
-            # In the converter, x = r sin(θ) and y = r cos(θ)
-            # But we want z on the horizontal axis and rho on vertical
+                theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=720)
+                y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=720)
 
-            y_beta = radius_beta * np.sin(theta_beta)
-            x_beta = radius_beta * np.cos(theta_beta)
+                # Validate the conversion
+                validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=720)
+                conversion_root_mean_squared_error = validation['root_mean_squared_error']
 
-            # Update beta shape lines
-            self.line_beta.set_data(x_beta, y_beta)
-            self.line_beta_mirror.set_data(x_beta, -y_beta)
+                # Update spherical FoS shape lines (shift back for plotting if needed)
+                if abs(cumulative_shift) > 1e-10:
+                    self.line_fos_spherical.set_data(x_fos - cumulative_shift, y_fos)
+                    self.line_fos_spherical_mirror.set_data(x_fos - cumulative_shift, -y_fos)
+                else:
+                    self.line_fos_spherical.set_data(x_fos, y_fos)
+                    self.line_fos_spherical_mirror.set_data(x_fos, -y_fos)
 
-            # Calculate the volume and center of mass for the beta shape
-            beta_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
+                # Calculate beta parameters
+                spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
+                l_max_value = int(self.slider_max_beta.val)
+                beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=l_max_value)
 
-            # Calculate RMSE for spherical fit
-            rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_fos) ** 2))
+                # Calculate the beta shape coordinates
+                theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta_parameters)
 
-            # Get significant beta parameters
-            beta_strings = [f"β_{l:<2} = {val:.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) > 0.001]
-            if not beta_strings:
-                significant_beta_parameters = "No significant beta parameters found."
+                # Convert back to Cartesian coordinates
+                y_beta = radius_beta * np.sin(theta_beta)
+                x_beta = radius_beta * np.cos(theta_beta)
+
+                # Shift back the beta shape if we had shifted for conversion
+                if abs(cumulative_shift) > 1e-10:
+                    x_beta = x_beta - cumulative_shift
+
+                # Update beta shape lines
+                self.line_beta.set_data(x_beta, y_beta)
+                self.line_beta_mirror.set_data(x_beta, -y_beta)
+
+                # Calculate the volume and center of mass for the beta shape
+                beta_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
+
+                # Calculate RMSE for spherical fit
+                rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_fos) ** 2))
+
+                # Get significant beta parameters
+                beta_strings = [f"β_{l:<2} = {val:.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) > 0.001]
+                if not beta_strings:
+                    significant_beta_parameters = "No significant beta parameters found."
+                else:
+                    paired_betas = []
+                    for i in range(0, len(beta_strings), 2):
+                        col1 = beta_strings[i]
+                        if i + 1 < len(beta_strings):
+                            col2 = beta_strings[i + 1]
+                            paired_betas.append(f"{col1:<20} {col2}")
+                        else:
+                            paired_betas.append(col1)
+                    significant_beta_parameters = "\n".join(paired_betas)
             else:
-                paired_betas = []
-                for i in range(0, len(beta_strings), 2):
-                    col1 = beta_strings[i]
-                    if i + 1 < len(beta_strings):
-                        col2 = beta_strings[i + 1]
-                        paired_betas.append(f"{col1:<20} {col2}")
-                    else:
-                        paired_betas.append(col1)
-                significant_beta_parameters = "\n".join(paired_betas)
+                # Could not make shape convertible
+                self.line_fos_spherical.set_data([], [])
+                self.line_fos_spherical_mirror.set_data([], [])
+                self.line_beta.set_data([], [])
+                self.line_beta_mirror.set_data([], [])
+                significant_beta_parameters = "Shape could not be made convertible"
 
         except Exception as e:
             print(f"Conversion error: {e}")
+            self.line_fos_spherical.set_data([], [])
+            self.line_fos_spherical_mirror.set_data([], [])
             self.line_beta.set_data([], [])
             self.line_beta_mirror.set_data([], [])
             significant_beta_parameters = "Calculation Error"
