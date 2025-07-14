@@ -221,6 +221,7 @@ class FoSShapePlotter:
         self.cm_fos_calculated = None
         self.cm_theoretical = None
         self.cm_spherical_fit_calculated = None
+        self.cm_spherical_fit_calculated_shifted = None
         self.cm_beta_fit_calculated = None
 
         # Sliders
@@ -303,8 +304,8 @@ class FoSShapePlotter:
         self.line_fos_spherical_mirror, = self.ax_plot.plot([], [], 'y--', linewidth=1.5)
 
         # Plot the FoS shape with CM shifted for conversion
-        self.line_fos_spherical_shifted_for_conversion, = self.ax_plot.plot([], [], 'g--', label='FoS shape (spherical, shifted for conversion)', linewidth=1.5, alpha=0.5)
-        self.line_fos_spherical_shifted_for_conversion_mirror, = self.ax_plot.plot([], [], 'g--', linewidth=1.5, alpha=0.5)
+        self.line_fos_spherical_shifted_for_conversion, = self.ax_plot.plot([], [], 'g:', label='FoS shape (spherical, shifted for conversion)', linewidth=1.5, alpha=0.5)
+        self.line_fos_spherical_shifted_for_conversion_mirror, = self.ax_plot.plot([], [], 'g:', linewidth=1.5, alpha=0.5)
 
         # Plot the beta shape and its mirror
         self.line_beta, = self.ax_plot.plot([], [], 'r--', label='Beta shape (normalized)', linewidth=2, alpha=0.7)
@@ -321,6 +322,7 @@ class FoSShapePlotter:
         # Plot the calculated center of mass
         self.cm_fos_calculated, = self.ax_plot.plot(0, 0, 'go', label='Calculated CM (FoS)', markersize=6, alpha=0.7)
         self.cm_spherical_fit_calculated, = self.ax_plot.plot(0, 0, 'ms', label='Calculated CM (Spherical Fit)', markersize=6, alpha=0.7)
+        self.cm_spherical_fit_calculated_shifted, = self.ax_plot.plot(0, 0, 'ms', label='Calculated CM (Spherical Fit, shifted)', markersize=6, alpha=0.5)
         self.cm_beta_fit_calculated, = self.ax_plot.plot(0, 0, 'cs', label='Calculated CM (Beta Fit)', markersize=6, alpha=0.7)
 
         self.ax_plot.legend(loc='upper right', bbox_to_anchor=(0, 1))
@@ -674,9 +676,10 @@ class FoSShapePlotter:
         center_of_mass_fos = calculator.calculate_center_of_mass(z_fos, rho_fos)
         self.cm_fos_calculated.set_data([center_of_mass_fos], [0])
         center_of_mass_spherical_fit = BetaDeformationCalculator.calculate_center_of_mass_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
-        self.cm_spherical_fit_calculated.set_data([center_of_mass_spherical_fit], [0])
+        self.cm_spherical_fit_calculated.set_data([center_of_mass_spherical_fit - cumulative_shift], [0])
+        self.cm_spherical_fit_calculated_shifted.set_data([center_of_mass_spherical_fit], [0])
         center_of_mass_beta_fit = BetaDeformationCalculator.calculate_center_of_mass_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
-        self.cm_beta_fit_calculated.set_data([center_of_mass_beta_fit], [0])
+        self.cm_beta_fit_calculated.set_data([center_of_mass_beta_fit - cumulative_shift], [0])
 
         # Calculate the ratio of calculated CM to theoretical shift, if NaN, set to 0
         # cm_ratio = (
@@ -721,8 +724,8 @@ class FoSShapePlotter:
             f"Shift needed for conversion: {cumulative_shift:.3f} fm\n"
             f"\nCenter of Mass:\n"
             f"Calculated CM (FoS): {center_of_mass_fos:.3f} fm\n"
-            f"Calculated CM (Spherical Fit): {center_of_mass_spherical_fit:.3f} fm\n"
-            f"Calculated CM (Beta Fit): {center_of_mass_beta_fit:.3f} fm\n"
+            f"Calculated CM (Spherical Fit): {center_of_mass_spherical_fit - cumulative_shift:.3f} fm\n"
+            f"Calculated CM (Beta Fit): {center_of_mass_beta_fit - cumulative_shift:.3f} fm\n"
             f"Calculated CM (Spherical Fit, shifted): {center_of_mass_spherical_fit:.3f} fm\n"
             # f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nVolume Information:\n"
