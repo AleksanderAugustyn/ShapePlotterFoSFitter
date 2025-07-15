@@ -206,7 +206,6 @@ class FoSShapeCalculator:
             return 0.0
 
         # Use simpson rule for numerical integration
-        dz = np.diff(z)
         z_mid = (z[1:] + z[:-1]) / 2
         rho_mid = (rho[1:] + rho[:-1]) / 2
 
@@ -799,11 +798,6 @@ class FoSShapePlotter:
         # Remove old text if it exists
         for artist in self.ax_text.texts:
             artist.remove()
-
-        # Remove old text from beta text area if it exists
-        for artist in self.ax_text.texts:
-            if hasattr(artist, '_beta_text') and artist._beta_text:
-                artist.remove()
 
         # Add new text to the left side of the right text area
         self.ax_text.text(-0.05, 1.0, info_text, transform=self.ax_text.transAxes,
