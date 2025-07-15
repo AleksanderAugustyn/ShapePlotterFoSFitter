@@ -92,7 +92,7 @@ class FoSShapeCalculator:
         f: np.ndarray = 1.0 - u ** 2.0
 
         # Sum Fourier terms
-        sum_terms:float = 0.0
+        sum_terms: float = 0.0
 
         # Add Fourier terms
         # k=1: a2 * cos((2 - 1) / 2 * π * u) + a3 sin(1 * π * u)
@@ -151,7 +151,7 @@ class FoSShapeCalculator:
     def calculate_surface_area_in_cylindrical_coordinates(z: np.ndarray, rho: np.ndarray):
         """
         Calculate the surface area by numerical integration.
-        S = 2π ∫ ρ(z) √(1 + (dρ/dz)²) dz
+        S = 2π ∫ ρ(z) √(1 + (dρ/d_z)²) d_z
 
         Args:
             z: axial coordinates
@@ -163,17 +163,17 @@ class FoSShapeCalculator:
         if len(z) < 2 or len(rho) < 2:
             return 0.0
 
-        # Calculate the derivative dρ/dz using finite differences
-        dz = np.diff(z)
+        # Calculate the derivative dρ/d_z using finite differences
+        d_z = np.diff(z)
         d_rho = np.diff(rho)
 
-        d_rho_dz = d_rho / dz
+        d_rho_dz = d_rho / d_z
 
         # Calculate the integrand
         integrand = 2 * np.pi * rho[:-1] * np.sqrt(1 + d_rho_dz ** 2)
 
         # Use trapezoidal rule for numerical integration
-        surface_area = np.sum(integrand * dz)
+        surface_area: float = np.sum(integrand * d_z)
 
         return surface_area
 
@@ -181,7 +181,7 @@ class FoSShapeCalculator:
     def calculate_volume_in_cylindrical_coordinates(z: np.ndarray, rho: np.ndarray) -> float:
         """
         Calculate volume by numerical integration.
-        V = π ∫ ρ²(z) dz
+        V = π ∫ ρ²(z) d_z
 
         Args:
             z: axial coordinates
@@ -191,9 +191,9 @@ class FoSShapeCalculator:
             volume: calculated volume of the shape in fm³
         """
         # Use trapezoidal rule
-        dz = np.diff(z)
+        d_z = np.diff(z)
         rho_mid = (rho[1:] + rho[:-1]) / 2
-        volume = np.pi * np.sum(rho_mid ** 2 * dz)
+        volume: float = np.pi * np.sum(rho_mid ** 2 * d_z)
         return volume
 
     @staticmethod
@@ -211,10 +211,10 @@ class FoSShapeCalculator:
         rho_mid = (rho[1:] + rho[:-1]) / 2
 
         # Numerator: ∫ z ρ²(z) dz
-        numerator = np.sum(z_mid * rho_mid ** 2 * dz)
+        numerator: float = np.sum(z_mid * rho_mid ** 2 * dz)
 
         # Denominator: ∫ ρ²(z) dz
-        denominator = np.sum(rho_mid ** 2 * dz)
+        denominator: float = np.sum(rho_mid ** 2 * dz)
 
         if denominator == 0:
             return 0.0
@@ -587,7 +587,10 @@ class FoSShapePlotter:
         self.line_fos_mirror.set_data(z_fos, -rho_fos)
 
         # Update beta shape lines and spherical FoS shape lines
+        fos_spherical_volume: float = 0.0
         beta_volume: float = 0.0
+        fos_spherical_surface_area: float = 0.0
+        beta_surface_area: float = 0.0
         radius_fos: np.ndarray = np.array([])
         theta_fos: np.ndarray = np.array([])
         radius_beta: np.ndarray = np.array([])
@@ -669,8 +672,13 @@ class FoSShapePlotter:
                 self.line_beta.set_data(x_beta, y_beta)
                 self.line_beta_mirror.set_data(x_beta, -y_beta)
 
-                # Calculate the volume and center of mass for the beta shape
+                # Calculate the volume for the spherical fit and beta fit
+                fos_spherical_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
                 beta_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
+
+                # Calculate the surface area for the spherical fit and beta fit
+                fos_spherical_surface_area = BetaDeformationCalculator.calculate_surface_area_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
+                beta_surface_area = BetaDeformationCalculator.calculate_surface_area_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
 
                 # Calculate RMSE for spherical fit
                 rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_fos) ** 2))
@@ -727,7 +735,6 @@ class FoSShapePlotter:
         sphere_y = current_params.radius0 * np.sin(theta_reference_sphere)
         self.reference_sphere_line.set_data(sphere_x, sphere_y)
         self.reference_sphere_line.set_label(f'R₀={current_params.radius0:.2f} fm')
-        reference_sphere_surface_area = calculator_fos.calculate_surface_area_in_cylindrical_coordinates(z_fos, rho_fos)
 
         # Update plot limits
         max_val = max(np.max(np.abs(z_fos)), np.max(np.abs(rho_fos))) * 1.2
@@ -736,6 +743,9 @@ class FoSShapePlotter:
 
         # Calculate the volume of the plotted shape for verification
         fos_shape_volume = calculator_fos.calculate_volume_in_cylindrical_coordinates(z_fos, rho_fos)
+
+        # Calculate the surface area of the plotted shape
+        fos_cylindrical_surface_area = calculator_fos.calculate_surface_area_in_cylindrical_coordinates(z_fos, rho_fos)
 
         # Calculate dimensions
         max_z = np.max(np.abs(z_fos))
@@ -759,18 +769,21 @@ class FoSShapePlotter:
             f"Theoretical z_shift = {current_params.z_sh:.3f} fm\n"
             f"Shift needed for conversion: {cumulative_shift:.3f} fm\n"
             f"\nCenter of Mass:\n"
-            f"Calculated CM (FoS): {center_of_mass_fos:.3f} fm\n"
-            f"Calculated CM (Spherical Fit): {center_of_mass_spherical_fit - cumulative_shift:.3f} fm\n"
-            f"Calculated CM (Beta Fit): {center_of_mass_beta_fit - cumulative_shift:.3f} fm\n"
-            f"Calculated CM (Spherical Fit, shifted): {center_of_mass_spherical_fit:.3f} fm\n"
+            f"Calculated CM (FoS Cylindrical): {center_of_mass_fos:.3f} fm\n"
+            f"Calculated CM (FoS Spherical Fit): {center_of_mass_spherical_fit - cumulative_shift:.3f} fm\n"
+            f"Calculated CM (FoS Beta Fit): {center_of_mass_beta_fit - cumulative_shift:.3f} fm\n"
+            f"Calculated CM (FoS Spherical Fit, shifted): {center_of_mass_spherical_fit:.3f} fm\n"
             # f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference sphere volume: {current_params.sphere_volume:.3f} fm³\n"
-            f"FoS shape volume: {fos_shape_volume:.3f} fm³\n"
+            f"FoS (cylindrical) shape volume: {fos_shape_volume:.3f} fm³\n"
+            f"FoS (spherical) shape volume: {fos_spherical_volume:.3f} fm³\n"
             f"Beta shape volume: {beta_volume:.3f} fm³\n"
             f"\nSurface Information:\n"
             f"Reference sphere surface area: {current_params.sphere_surface_area:.3f} fm²\n"
-            f"FoS shape surface area: {reference_sphere_surface_area:.3f} fm²\n"
+            f"FoS (cylindrical) shape surface area: {fos_cylindrical_surface_area:.3f} fm²\n"
+            f"FoS (spherical) shape surface area: {fos_spherical_surface_area:.3f} fm²\n"
+            f"Beta shape surface area: {beta_surface_area:.3f} fm²\n"
             f"\nShape dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"

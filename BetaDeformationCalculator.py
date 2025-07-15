@@ -124,6 +124,34 @@ class BetaDeformationCalculator:
         return np.sqrt(sum_squared)
 
     @staticmethod
+    def calculate_surface_area_in_spherical_coordinates(radius: np.ndarray, theta: np.ndarray) -> float:
+        """
+        Calculate the surface area of an axially symmetric shape in spherical coordinates.
+
+        A = 2π ∫ r(θ) sin(θ) √ (r(θ)² + (dr/dθ)²) dθ
+
+        Args:
+            radius: Array of radial distances r(θ)
+            theta: Array of polar angles θ
+
+        Returns:
+            Surface area of the shape
+        """
+        # Calculate the derivative dr/dθ using finite differences
+        d_r = np.diff(radius)
+        d_theta = np.diff(theta)
+
+        dr_dtheta = d_r / d_theta
+
+        # Calculate the integrand
+        integrand = 2 * np.pi * radius[:-1] * np.sin(theta[:-1]) * np.sqrt(radius[:-1] ** 2 + dr_dtheta ** 2)
+
+        # Integrate using Simpson's rule
+        surface_area: float = simpson(integrand, x=theta[:-1])
+
+        return surface_area
+
+    @staticmethod
     def calculate_volume_in_spherical_coordinates(radius: np.ndarray, theta: np.ndarray) -> float:
         """
         Calculate the volume of the shape in spherical coordinates.
