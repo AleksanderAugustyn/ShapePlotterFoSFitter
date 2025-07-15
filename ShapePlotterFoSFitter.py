@@ -224,9 +224,8 @@ class FoSShapeCalculator:
 class FoSShapePlotter:
     """Class for plotting Fourier-over-Spheroid nuclear shapes."""
 
-    def __init__(self, number_of_shape_points: int = 720):
+    def __init__(self):
         """Initialize the plotter with default settings."""
-        self.number_of_shape_points = number_of_shape_points
         # Default shape parameters
         self.initial_z = 92  # Uranium
         self.initial_n = 144
@@ -269,6 +268,7 @@ class FoSShapePlotter:
         self.slider_a5 = None
         self.slider_a6 = None
         self.slider_max_beta = None
+        self.slider_number_of_points = None
 
         # Buttons
         self.reset_button = None
@@ -389,7 +389,7 @@ class FoSShapePlotter:
         """Set up all UI controls."""
         # Starting y position for sliders
         first_slider_y = 0.02
-        slider_spacing = 0.035
+        slider_spacing = 0.03
 
         # Create sliders with buttons
         self.slider_z, _, _ = self.create_slider_with_buttons('z', first_slider_y, 'Z', 82, 120, self.initial_z, 1)
@@ -401,10 +401,11 @@ class FoSShapePlotter:
         self.slider_a5, _, _ = self.create_slider_with_buttons('a5', first_slider_y + 6 * slider_spacing, 'a₅', -0.5, 0.5, self.initial_a5, 0.01)
         self.slider_a6, _, _ = self.create_slider_with_buttons('a6', first_slider_y + 7 * slider_spacing, 'a₆', -0.5, 0.5, self.initial_a6, 0.01)
         self.slider_max_beta, _, _ = self.create_slider_with_buttons('max_beta', first_slider_y + 8 * slider_spacing, 'Max Betas Used For Fit', 1.0, 36.0, 12.0, 1.0)
+        self.slider_number_of_points, _, _ = self.create_slider_with_buttons('number_of_points', first_slider_y + 9 * slider_spacing, 'Number of Points', 180, 3600, 720, 180)
 
         # Style font sizes for all sliders
         for slider in [self.slider_z, self.slider_n, self.slider_c, self.slider_q2,
-                       self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6, self.slider_max_beta]:
+                       self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6, self.slider_max_beta, self.slider_number_of_points]:
             slider.label.set_fontsize(14)
             slider.valtext.set_fontsize(14)
 
@@ -467,6 +468,7 @@ class FoSShapePlotter:
         self.slider_a5.on_changed(self.update_plot)
         self.slider_a6.on_changed(self.update_plot)
         self.slider_max_beta.on_changed(self.update_plot)
+        self.slider_number_of_points.on_changed(self.update_plot)
 
         # Connect button handlers
         self.reset_button.on_clicked(self.reset_values)
@@ -579,7 +581,8 @@ class FoSShapePlotter:
         calculator_fos = FoSShapeCalculator(current_params)
 
         # Calculate shape with theoretical shift
-        z_fos, rho_fos = calculator_fos.calculate_shape()
+        current_number_of_points = int(self.slider_number_of_points.val)
+        z_fos, rho_fos = calculator_fos.calculate_shape(n_points=current_number_of_points)
         # radius_from_fos: np.ndarray = np.sqrt(z_fos ** 2 + rho_fos ** 2)
 
         # Update FoS shape lines
@@ -606,7 +609,7 @@ class FoSShapePlotter:
 
             # First, check if the shape can be unambiguously converted
             cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
-            is_convertible = cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=self.number_of_shape_points, tolerance=1e-9)
+            is_convertible = cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=current_number_of_points, tolerance=1e-9)
 
             # If not convertible, try shifting
             if not is_convertible:
@@ -625,7 +628,7 @@ class FoSShapePlotter:
 
                     # Check if now convertible
                     cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
-                    if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=self.number_of_shape_points, tolerance=1e-9):
+                    if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=current_number_of_points, tolerance=1e-9):
                         is_convertible = True
                         is_converted = True
                         break
@@ -633,11 +636,11 @@ class FoSShapePlotter:
             # If the shape is now convertible (either originally or after shifting), proceed with conversion
             if is_convertible:
 
-                theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=720)
-                y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=self.number_of_shape_points)
+                theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=current_number_of_points)
+                y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=current_number_of_points)
 
                 # Validate the conversion
-                validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=self.number_of_shape_points)
+                validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=current_number_of_points)
                 conversion_root_mean_squared_error = validation['root_mean_squared_error']
 
                 # Update spherical FoS shape lines (shift back for plotting if needed)
@@ -658,7 +661,7 @@ class FoSShapePlotter:
                 beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=l_max_value)
 
                 # Calculate the beta shape coordinates
-                theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta_parameters)
+                theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta=beta_parameters, n_theta=current_number_of_points)
 
                 # Convert back to Cartesian coordinates
                 y_beta = radius_beta * np.sin(theta_beta)
@@ -730,7 +733,7 @@ class FoSShapePlotter:
         # )
 
         # Update a reference sphere
-        theta_reference_sphere = np.linspace(0, 2 * np.pi, 200)
+        theta_reference_sphere = np.linspace(0, 2 * np.pi, 180)
         sphere_x = current_params.radius0 * np.cos(theta_reference_sphere)
         sphere_y = current_params.radius0 * np.sin(theta_reference_sphere)
         self.reference_sphere_line.set_data(sphere_x, sphere_y)
@@ -759,7 +762,7 @@ class FoSShapePlotter:
 
         # Add information text
         info_text = (
-            f"Shape Points: {self.number_of_shape_points}\n"
+            f"Shape Points: {current_number_of_points}\n"
             f"R₀ = {current_params.radius0:.3f} fm\n"
             f"\nParameter Relations:\n"
             f"a₂ = a₄/3 - a₆/5\n"
@@ -833,8 +836,7 @@ class FoSShapePlotter:
 def main():
     """Main entry point for the application."""
     # Number of points for the shape calculation
-    number_of_points = 720
-    plotter = FoSShapePlotter(number_of_shape_points=number_of_points)
+    plotter = FoSShapePlotter()
     plotter.run()
 
 
