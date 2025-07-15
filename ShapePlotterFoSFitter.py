@@ -582,12 +582,11 @@ class FoSShapePlotter:
 
         # Calculate shape with theoretical shift
         current_number_of_points = int(self.slider_number_of_points.val)
-        z_fos, rho_fos = calculator_fos.calculate_shape(n_points=current_number_of_points)
-        # radius_from_fos: np.ndarray = np.sqrt(z_fos ** 2 + rho_fos ** 2)
+        z_fos_cylindrical, rho_fos_cylindrical = calculator_fos.calculate_shape(n_points=current_number_of_points)
 
         # Update FoS shape lines
-        self.line_fos.set_data(z_fos, rho_fos)
-        self.line_fos_mirror.set_data(z_fos, -rho_fos)
+        self.line_fos.set_data(z_fos_cylindrical, rho_fos_cylindrical)
+        self.line_fos_mirror.set_data(z_fos_cylindrical, -rho_fos_cylindrical)
 
         # Update beta shape lines and spherical FoS shape lines
         fos_spherical_volume: float = 0.0
@@ -605,10 +604,10 @@ class FoSShapePlotter:
 
         try:
             # Make a copy of the original shape for shifting if needed
-            z_work = z_fos.copy()
+            z_work = z_fos_cylindrical.copy()
 
             # First, check if the shape can be unambiguously converted
-            cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
+            cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos_cylindrical)
             is_convertible = cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=current_number_of_points, tolerance=1e-9)
 
             # If not convertible, try shifting
@@ -618,16 +617,16 @@ class FoSShapePlotter:
                 shift_direction = -1.0 if current_params.z_sh >= 0 else 1.0
 
                 # The maximum allowed shift is half the z-dimension length
-                z_length = np.max(z_fos) - np.min(z_fos)
+                z_length = np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)
                 max_shift = z_length / 2.0
 
                 # Try shifting until convertible or reach the limit
                 while abs(cumulative_shift) < max_shift:
                     cumulative_shift += shift_direction * z_step
-                    z_work = z_fos + cumulative_shift
+                    z_work = z_fos_cylindrical + cumulative_shift
 
                     # Check if now convertible
-                    cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
+                    cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos_cylindrical)
                     if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=current_number_of_points, tolerance=1e-9):
                         is_convertible = True
                         is_converted = True
@@ -637,7 +636,7 @@ class FoSShapePlotter:
             if is_convertible:
 
                 theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=current_number_of_points)
-                y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=current_number_of_points)
+                z_fos_spherical, rho_fos_spherical = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=current_number_of_points)
 
                 # Validate the conversion
                 validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=current_number_of_points)
@@ -645,13 +644,13 @@ class FoSShapePlotter:
 
                 # Update spherical FoS shape lines (shift back for plotting if needed)
                 if abs(cumulative_shift) > 1e-10:
-                    self.line_fos_spherical.set_data(x_fos - cumulative_shift, y_fos)
-                    self.line_fos_spherical_mirror.set_data(x_fos - cumulative_shift, -y_fos)
-                    self.line_fos_spherical_shifted_for_conversion.set_data(x_fos, y_fos)
-                    self.line_fos_spherical_shifted_for_conversion_mirror.set_data(x_fos, -y_fos)
+                    self.line_fos_spherical.set_data(rho_fos_spherical - cumulative_shift, z_fos_spherical)
+                    self.line_fos_spherical_mirror.set_data(rho_fos_spherical - cumulative_shift, -z_fos_spherical)
+                    self.line_fos_spherical_shifted_for_conversion.set_data(rho_fos_spherical, z_fos_spherical)
+                    self.line_fos_spherical_shifted_for_conversion_mirror.set_data(rho_fos_spherical, -z_fos_spherical)
                 else:
-                    self.line_fos_spherical.set_data(x_fos, y_fos)
-                    self.line_fos_spherical_mirror.set_data(x_fos, -y_fos)
+                    self.line_fos_spherical.set_data(rho_fos_spherical, z_fos_spherical)
+                    self.line_fos_spherical_mirror.set_data(rho_fos_spherical, -z_fos_spherical)
                     self.line_fos_spherical_shifted_for_conversion.set_data([], [])
                     self.line_fos_spherical_shifted_for_conversion_mirror.set_data([], [])
 
@@ -664,16 +663,16 @@ class FoSShapePlotter:
                 theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta=beta_parameters, n_theta=current_number_of_points)
 
                 # Convert back to Cartesian coordinates
-                y_beta = radius_beta * np.sin(theta_beta)
-                x_beta = radius_beta * np.cos(theta_beta)
+                z_beta = radius_beta * np.cos(theta_beta)
+                rho_beta = radius_beta * np.sin(theta_beta)
 
                 # Shift back the beta shape if we had shifted for conversion
                 if abs(cumulative_shift) > 1e-10:
-                    x_beta = x_beta - cumulative_shift
+                    z_beta = z_beta - cumulative_shift
 
                 # Update beta shape lines
-                self.line_beta.set_data(x_beta, y_beta)
-                self.line_beta_mirror.set_data(x_beta, -y_beta)
+                self.line_beta.set_data(z_beta, rho_beta)
+                self.line_beta_mirror.set_data(z_beta, -rho_beta)
 
                 # Calculate the volume for the spherical fit and beta fit
                 fos_spherical_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
@@ -683,7 +682,7 @@ class FoSShapePlotter:
                 fos_spherical_surface_area = BetaDeformationCalculator.calculate_surface_area_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
                 beta_surface_area = BetaDeformationCalculator.calculate_surface_area_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
 
-                # Calculate RMSE for spherical fit
+                # Calculate RMSE for the beta fit
                 rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_fos) ** 2))
 
                 # Get significant beta parameters
@@ -718,7 +717,7 @@ class FoSShapePlotter:
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
-        center_of_mass_fos = calculator_fos.calculate_center_of_mass_in_cylindrical_coordinates(z_fos, rho_fos)
+        center_of_mass_fos = calculator_fos.calculate_center_of_mass_in_cylindrical_coordinates(z_fos_cylindrical, rho_fos_cylindrical)
         self.cm_fos_calculated.set_data([center_of_mass_fos], [0])
         center_of_mass_spherical_fit = BetaDeformationCalculator.calculate_center_of_mass_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
         self.cm_spherical_fit_calculated.set_data([center_of_mass_spherical_fit - cumulative_shift], [0])
@@ -728,7 +727,7 @@ class FoSShapePlotter:
 
         # Calculate the ratio of calculated CM to theoretical shift, if NaN, set to 0
         # cm_ratio = (
-        #     calculator_fos.calculate_center_of_mass(z_fos, rho_fos) / current_params.z_sh
+        #     calculator_fos.calculate_center_of_mass(z_fos_cylindrical, rho_fos_cylindrical) / current_params.z_sh
         #     if current_params.z_sh != 0 else 0.0
         # )
 
@@ -740,64 +739,64 @@ class FoSShapePlotter:
         self.reference_sphere_line.set_label(f'R₀={current_params.radius0:.2f} fm')
 
         # Update plot limits
-        max_val = max(np.max(np.abs(z_fos)), np.max(np.abs(rho_fos))) * 1.2
+        max_val = max(np.max(np.abs(z_fos_cylindrical)), np.max(np.abs(rho_fos_cylindrical))) * 1.2
         self.ax_plot.set_xlim(-max_val, max_val)
         self.ax_plot.set_ylim(-max_val, max_val)
 
         # Calculate the volume of the plotted shape for verification
-        fos_shape_volume = calculator_fos.calculate_volume_in_cylindrical_coordinates(z_fos, rho_fos)
+        fos_shape_volume = calculator_fos.calculate_volume_in_cylindrical_coordinates(z_fos_cylindrical, rho_fos_cylindrical)
 
         # Calculate the surface area of the plotted shape
-        fos_cylindrical_surface_area = calculator_fos.calculate_surface_area_in_cylindrical_coordinates(z_fos, rho_fos)
+        fos_cylindrical_surface_area = calculator_fos.calculate_surface_area_in_cylindrical_coordinates(z_fos_cylindrical, rho_fos_cylindrical)
 
         # Calculate dimensions
-        max_z = np.max(np.abs(z_fos))
-        max_rho = np.max(rho_fos)
+        max_z = np.max(np.abs(z_fos_cylindrical))
+        max_rho = np.max(rho_fos_cylindrical)
 
         # Calculate neck radius at a4 = 0.72 (scission point)
         if current_params.a4 > 0:
-            neck_radius = min(rho_fos[len(rho_fos) // 2 - 10:len(rho_fos) // 2 + 10])
+            neck_radius = min(rho_fos_cylindrical[len(rho_fos_cylindrical) // 2 - 10:len(rho_fos_cylindrical) // 2 + 10])
         else:
             neck_radius = max_rho
 
         # Add information text
         info_text = (
-            f"Shape Points: {current_number_of_points}\n"
+            f"Number of Shape Points: {current_number_of_points}\n"
             f"R₀ = {current_params.radius0:.3f} fm\n"
             f"\nParameter Relations:\n"
-            f"a₂ = a₄/3 - a₆/5\n"
+            f"a₂ (From Volume Conservation)= a₄/3 - a₆/5\n"
             f"a₂ = {current_params.a4:.3f} / 3.0 - {current_params.a6:.3f} / 5.0 = {current_params.a2:.3f}\n"
-            f"c = q₂ + 1.0 + 1.5a₄\n"
+            f"c (Elongation) = q₂ + 1.0 + 1.5a₄\n"
             f"c = {current_params.q2:.3f} + 1.0 + 1.5 × {current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
             f"Aₕ = A/2 * (1.0 + a₃)\n"
             f"Aₕ = {current_params.nucleons:.3f} / 2 * (1.0 + {current_params.a3:.3f}) = {current_params.nucleons / 2.0 * (1.0 + current_params.a3):.3f}\n"
             f"\nShift Information:\n"
             f"Theoretical z_shift = {current_params.z_sh:.3f} fm\n"
-            f"Shift needed for conversion: {cumulative_shift:.3f} fm\n"
+            f"Shift Needed for Conversion: {cumulative_shift:.3f} fm\n"
             f"\nCenter of Mass:\n"
             f"Calculated CM (FoS Cylindrical): {center_of_mass_fos:.3f} fm\n"
             f"Calculated CM (FoS Spherical Fit): {center_of_mass_spherical_fit - cumulative_shift:.3f} fm\n"
             f"Calculated CM (FoS Beta Fit): {center_of_mass_beta_fit - cumulative_shift:.3f} fm\n"
-            f"Calculated CM (FoS Spherical Fit, shifted): {center_of_mass_spherical_fit:.3f} fm\n"
+            f"Calculated CM (FoS Spherical Fit, Shifted): {center_of_mass_spherical_fit:.3f} fm\n"
             # f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nVolume Information:\n"
-            f"Reference sphere volume: {current_params.sphere_volume:.3f} fm³\n"
-            f"FoS (cylindrical) shape volume: {fos_shape_volume:.3f} fm³\n"
-            f"FoS (spherical) shape volume: {fos_spherical_volume:.3f} fm³\n"
-            f"Beta shape volume: {beta_volume:.3f} fm³\n"
+            f"Reference Sphere Volume: {current_params.sphere_volume:.3f} fm³\n"
+            f"FoS (Cylindrical) Shape Volume: {fos_shape_volume:.3f} fm³\n"
+            f"FoS (Spherical) Shape Volume: {fos_spherical_volume:.3f} fm³\n"
+            f"Beta Shape Volume: {beta_volume:.3f} fm³\n"
             f"\nSurface Information:\n"
-            f"Reference sphere surface area: {current_params.sphere_surface_area:.3f} fm²\n"
-            f"FoS (cylindrical) shape surface area: {fos_cylindrical_surface_area:.3f} fm²\n"
-            f"FoS (spherical) shape surface area: {fos_spherical_surface_area:.3f} fm²\n"
-            f"Beta shape surface area: {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f} % of FoS (cylindrical)\n"
-            f"\nShape dimensions:\n"
+            f"Reference Sphere Surface Area: {current_params.sphere_surface_area:.3f} fm²\n"
+            f"FoS (Cylindrical) Shape Surface Area: {fos_cylindrical_surface_area:.3f} fm²\n"
+            f"FoS (Spherical) Shape Surface Area: {fos_spherical_surface_area:.3f} fm²\n"
+            f"Beta Shape Surface Area: {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f} % of FoS (cylindrical)\n"
+            f"\nShape Dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
-            f"Neck radius: {neck_radius:.2f} fm\n"
-            f"Calculated c (elongation): {max_z / current_params.radius0:.3f}\n"
+            f"Neck Radius: {neck_radius:.2f} fm\n"
+            f"Calculated c (Elongation): {max_z / current_params.radius0:.3f}\n"
             f"\nConversion Information:\n"
-            f"Shape is originally unambiguously convertible: {'Yes' if not is_converted else 'No'}\n"
-            f"\nFit information:\n"
+            f"Shape is Originally Unambiguously Convertible: {'Yes' if not is_converted else 'No'}\n"
+            f"\nFit Information:\n"
             f"RMSE (Spherical Coords Conversion): {conversion_root_mean_squared_error:.3f} fm\n"
             f"RMSE (Beta Parametrization Fit): {rmse_beta_fit:.3f} fm"
         )
