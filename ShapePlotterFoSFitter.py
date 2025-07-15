@@ -300,7 +300,7 @@ class FoSShapePlotter:
 
     def create_figure(self):
         """Create and set up the matplotlib figure."""
-        self.fig = plt.figure(figsize=(16, 8))
+        self.fig = plt.figure(figsize=(16.0, 8.0))
 
         # Create the main plot on the left side
         self.ax_plot = self.fig.add_subplot(121)
@@ -311,7 +311,7 @@ class FoSShapePlotter:
         self.ax_text.set_ylim(0, 1)
         self.ax_text.axis('off')  # Hide axes for the text area
 
-        plt.subplots_adjust(left=0.08, bottom=0.45, right=0.95, top=0.9, wspace=0.1)
+        plt.subplots_adjust(left=0.13, bottom=0.38, right=0.97, top=0.97, wspace=0.1)
 
         # Set up the main plot
         self.ax_plot.set_aspect('equal')
@@ -365,15 +365,15 @@ class FoSShapePlotter:
     def create_slider_with_buttons(self, slider_name, y_position, label, value_minimal, value_maximal, value_initial, value_step):
         """Create a slider with decrement and increment buttons."""
         # Create a decrement button (left side)
-        dec_ax = plt.axes((0.20, y_position, 0.02, 0.03))
+        dec_ax = plt.axes((0.20, y_position, 0.016, 0.024))
         dec_button = Button(dec_ax, '-')
 
         # Create the slider
-        slider_ax = plt.axes((0.25, y_position, 0.5, 0.03))
+        slider_ax = plt.axes((0.25, y_position, 0.5, 0.024))
         slider = Slider(ax=slider_ax, label=label, valmin=value_minimal, valmax=value_maximal, valinit=value_initial, valstep=value_step)
 
         # Create an increment button (right side)
-        inc_ax = plt.axes((0.78, y_position, 0.02, 0.03))
+        inc_ax = plt.axes((0.78, y_position, 0.016, 0.024))
         inc_button = Button(inc_ax, '+')
 
         # Store buttons for later reference
@@ -389,7 +389,7 @@ class FoSShapePlotter:
         """Set up all UI controls."""
         # Starting y position for sliders
         first_slider_y = 0.02
-        slider_spacing = 0.04
+        slider_spacing = 0.035
 
         # Create sliders with buttons
         self.slider_z, _, _ = self.create_slider_with_buttons('z', first_slider_y, 'Z', 82, 120, self.initial_z, 1)
@@ -405,25 +405,25 @@ class FoSShapePlotter:
         # Style font sizes for all sliders
         for slider in [self.slider_z, self.slider_n, self.slider_c, self.slider_q2,
                        self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6, self.slider_max_beta]:
-            slider.label.set_fontsize(12)
-            slider.valtext.set_fontsize(12)
+            slider.label.set_fontsize(14)
+            slider.valtext.set_fontsize(14)
 
         # Style increment/decrement buttons
         for slider_name, buttons in self.slider_buttons.items():
-            buttons['dec_button'].label.set_fontsize(10)
-            buttons['inc_button'].label.set_fontsize(10)
+            buttons['dec_button'].label.set_fontsize(16)
+            buttons['inc_button'].label.set_fontsize(16)
 
         # Create buttons
-        ax_reset = plt.axes((0.82, 0.37, 0.1, 0.04))
+        ax_reset = plt.axes((0.82, 0.37, 0.08, 0.032))
         self.reset_button = Button(ax=ax_reset, label='Reset')
 
-        ax_save = plt.axes((0.82, 0.32, 0.1, 0.04))
+        ax_save = plt.axes((0.82, 0.32, 0.08, 0.032))
         self.save_button = Button(ax=ax_save, label='Save Plot')
 
         # Create preset buttons
         preset_labels = ['Sphere', 'Prolate', 'Oblate', 'Pear-shaped', 'Two-center', 'Scission']
         for i, label in enumerate(preset_labels):
-            ax_preset = plt.axes((0.02, 0.6 - i * 0.06, 0.1, 0.04))
+            ax_preset = plt.axes((0.02, 0.6 - i * 0.06, 0.08, 0.032))
             btn = Button(ax=ax_preset, label=label)
             self.preset_buttons.append(btn)
 
@@ -783,7 +783,7 @@ class FoSShapePlotter:
             f"Reference sphere surface area: {current_params.sphere_surface_area:.3f} fm²\n"
             f"FoS (cylindrical) shape surface area: {fos_cylindrical_surface_area:.3f} fm²\n"
             f"FoS (spherical) shape surface area: {fos_spherical_surface_area:.3f} fm²\n"
-            f"Beta shape surface area: {beta_surface_area:.3f} fm²\n"
+            f"Beta shape surface area: {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f} % of FoS (cylindrical)\n"
             f"\nShape dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
@@ -806,12 +806,12 @@ class FoSShapePlotter:
                 artist.remove()
 
         # Add new text to the left side of the right text area
-        self.ax_text.text(0.05, 1.2, info_text, transform=self.ax_text.transAxes,
+        self.ax_text.text(-0.05, 1.0, info_text, transform=self.ax_text.transAxes,
                           fontsize=10, verticalalignment='top', horizontalalignment='left',
                           bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
         # Add beta parameters text to the right side of the right text area
-        beta_text_obj = self.ax_text.text(0.55, 1.2, f"Significant Beta Parameters (>0.001):\n{significant_beta_parameters}",
+        beta_text_obj = self.ax_text.text(0.55, 1.0, f"Significant Beta Parameters (>0.001):\n{significant_beta_parameters}",
                                           transform=self.ax_text.transAxes,
                                           fontsize=10, verticalalignment='top', horizontalalignment='left',
                                           bbox={'boxstyle': 'round', 'facecolor': 'lightblue', 'alpha': 0.5}, fontfamily='monospace')
