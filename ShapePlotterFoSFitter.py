@@ -11,6 +11,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.widgets import Button, Slider
+from scipy.integrate import simpson
 
 from BetaDeformationCalculator import BetaDeformationCalculator
 from CylindricalToSphericalConverter import CylindricalToSphericalConverter
@@ -172,8 +173,8 @@ class FoSShapeCalculator:
         # Calculate the integrand
         integrand = 2 * np.pi * rho[:-1] * np.sqrt(1 + d_rho_dz ** 2)
 
-        # Use trapezoidal rule for numerical integration
-        surface_area: float = np.sum(integrand * d_z)
+        # Use simpson rule to calculate the integral
+        surface_area: float = simpson(integrand, x=z[:-1])
 
         return surface_area
 
@@ -190,10 +191,9 @@ class FoSShapeCalculator:
         Returns:
             volume: calculated volume of the shape in fm³
         """
-        # Use trapezoidal rule
-        d_z = np.diff(z)
-        rho_mid = (rho[1:] + rho[:-1]) / 2
-        volume: float = np.pi * np.sum(rho_mid ** 2 * d_z)
+        # Use the simpson rule to calculate the integral
+        volume: float = simpson(np.pi * rho[:-1] ** 2, x=z[:-1])
+
         return volume
 
     @staticmethod
@@ -205,16 +205,16 @@ class FoSShapeCalculator:
         if len(z) < 2:
             return 0.0
 
-        # Use trapezoidal rule for both integrals
+        # Use simpson rule for numerical integration
         dz = np.diff(z)
         z_mid = (z[1:] + z[:-1]) / 2
         rho_mid = (rho[1:] + rho[:-1]) / 2
 
         # Numerator: ∫ z ρ²(z) dz
-        numerator: float = np.sum(z_mid * rho_mid ** 2 * dz)
+        numerator: float = simpson(z_mid * rho_mid ** 2, x=z[:-1])
 
         # Denominator: ∫ ρ²(z) dz
-        denominator: float = np.sum(rho_mid ** 2 * dz)
+        denominator: float = simpson(rho_mid ** 2, x=z[:-1])
 
         if denominator == 0:
             return 0.0
@@ -793,18 +793,29 @@ class FoSShapePlotter:
             f"Shape is originally unambiguously convertible: {'Yes' if not is_converted else 'No'}\n"
             f"\nFit information:\n"
             f"RMSE (Spherical Coords Conversion): {conversion_root_mean_squared_error:.3f} fm\n"
-            f"RMSE (Beta Parametrization Fit): {rmse_beta_fit:.3f} fm\n"
-            f"\nSignificant Beta Parameters (>0.001):\n{significant_beta_parameters}"
+            f"RMSE (Beta Parametrization Fit): {rmse_beta_fit:.3f} fm"
         )
 
         # Remove old text if it exists
         for artist in self.ax_text.texts:
             artist.remove()
 
-        # Add new text to the right-side text area
+        # Remove old text from beta text area if it exists
+        for artist in self.ax_text.texts:
+            if hasattr(artist, '_beta_text') and artist._beta_text:
+                artist.remove()
+
+        # Add new text to the left side of the right text area
         self.ax_text.text(0.05, 1.2, info_text, transform=self.ax_text.transAxes,
                           fontsize=10, verticalalignment='top', horizontalalignment='left',
                           bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
+
+        # Add beta parameters text to the right side of the right text area
+        beta_text_obj = self.ax_text.text(0.55, 1.2, f"Significant Beta Parameters (>0.001):\n{significant_beta_parameters}",
+                                          transform=self.ax_text.transAxes,
+                                          fontsize=10, verticalalignment='top', horizontalalignment='left',
+                                          bbox={'boxstyle': 'round', 'facecolor': 'lightblue', 'alpha': 0.5}, fontfamily='monospace')
+        beta_text_obj._beta_text = True  # Mark this as beta text for removal
 
         # Update title
         self.ax_plot.set_title(
