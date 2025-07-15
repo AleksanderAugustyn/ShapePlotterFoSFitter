@@ -53,6 +53,11 @@ class FoSParameters:
         return self.a4 / 3.0 - self.a6 / 5.0
 
     @property
+    def sphere_surface_area(self) -> float:
+        """Surface area of a sphere with the same nucleon number."""
+        return 4 * np.pi * self.radius0 ** 2
+
+    @property
     def sphere_volume(self) -> float:
         """Volume of a sphere with the same nucleon number."""
         return (4 / 3) * np.pi * self.radius0 ** 3
@@ -143,6 +148,36 @@ class FoSShapeCalculator:
         return z, rho
 
     @staticmethod
+    def calculate_surface_area_in_cylindrical_coordinates(z: np.ndarray, rho: np.ndarray):
+        """
+        Calculate the surface area by numerical integration.
+        S = 2π ∫ ρ(z) √(1 + (dρ/dz)²) dz
+
+        Args:
+            z: axial coordinates
+            rho: radial coordinates
+
+        Returns:
+            surface_area: calculated surface area of the shape in fm²
+        """
+        if len(z) < 2 or len(rho) < 2:
+            return 0.0
+
+        # Calculate the derivative dρ/dz using finite differences
+        dz = np.diff(z)
+        d_rho = np.diff(rho)
+
+        d_rho_dz = d_rho / dz
+
+        # Calculate the integrand
+        integrand = 2 * np.pi * rho[:-1] * np.sqrt(1 + d_rho_dz ** 2)
+
+        # Use trapezoidal rule for numerical integration
+        surface_area = np.sum(integrand * dz)
+
+        return surface_area
+
+    @staticmethod
     def calculate_volume_in_cylindrical_coordinates(z: np.ndarray, rho: np.ndarray) -> float:
         """
         Calculate volume by numerical integration.
@@ -162,7 +197,7 @@ class FoSShapeCalculator:
         return volume
 
     @staticmethod
-    def calculate_center_of_mass(z: np.ndarray, rho: np.ndarray) -> float:
+    def calculate_center_of_mass_in_cylindrical_coordinates(z: np.ndarray, rho: np.ndarray) -> float:
         """
         Calculate the center of mass position along the z-axis.
         z_cm = ∫ z ρ²(z) dz / ∫ ρ²(z) dz
@@ -672,7 +707,7 @@ class FoSShapePlotter:
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
-        center_of_mass_fos = calculator_fos.calculate_center_of_mass(z_fos, rho_fos)
+        center_of_mass_fos = calculator_fos.calculate_center_of_mass_in_cylindrical_coordinates(z_fos, rho_fos)
         self.cm_fos_calculated.set_data([center_of_mass_fos], [0])
         center_of_mass_spherical_fit = BetaDeformationCalculator.calculate_center_of_mass_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
         self.cm_spherical_fit_calculated.set_data([center_of_mass_spherical_fit - cumulative_shift], [0])
@@ -692,6 +727,7 @@ class FoSShapePlotter:
         sphere_y = current_params.radius0 * np.sin(theta_reference_sphere)
         self.reference_sphere_line.set_data(sphere_x, sphere_y)
         self.reference_sphere_line.set_label(f'R₀={current_params.radius0:.2f} fm')
+        reference_sphere_surface_area = calculator_fos.calculate_surface_area_in_cylindrical_coordinates(z_fos, rho_fos)
 
         # Update plot limits
         max_val = max(np.max(np.abs(z_fos)), np.max(np.abs(rho_fos))) * 1.2
@@ -733,6 +769,8 @@ class FoSShapePlotter:
             f"FoS shape volume: {fos_shape_volume:.3f} fm³\n"
             f"Beta shape volume: {beta_volume:.3f} fm³\n"
             f"\nSurface Information:\n"
+            f"Reference sphere surface area: {current_params.sphere_surface_area:.3f} fm²\n"
+            f"FoS shape surface area: {reference_sphere_surface_area:.3f} fm²\n"
             f"\nShape dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
