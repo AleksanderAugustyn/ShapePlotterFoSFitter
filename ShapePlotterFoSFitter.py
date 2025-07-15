@@ -286,8 +286,8 @@ class FoSShapePlotter:
         self.ax_plot.set_ylabel('ρ (fm)', fontsize=12)
 
         # Initialize the shape plot
-        calculator = FoSShapeCalculator(self.nuclear_params)
-        z, rho = calculator.calculate_shape()
+        calculator_fos = FoSShapeCalculator(self.nuclear_params)
+        z, rho = calculator_fos.calculate_shape()
 
         # Create a reference sphere
         r0 = self.nuclear_params.radius0
@@ -541,10 +541,10 @@ class FoSShapePlotter:
         )
 
         # Calculate shape
-        calculator = FoSShapeCalculator(current_params)
+        calculator_fos = FoSShapeCalculator(current_params)
 
         # Calculate shape with theoretical shift
-        z_fos, rho_fos = calculator.calculate_shape()
+        z_fos, rho_fos = calculator_fos.calculate_shape()
         # radius_from_fos: np.ndarray = np.sqrt(z_fos ** 2 + rho_fos ** 2)
 
         # Update FoS shape lines
@@ -672,7 +672,7 @@ class FoSShapePlotter:
 
         # Update center of mass points
         self.cm_theoretical.set_data([current_params.z_sh], [0])
-        center_of_mass_fos = calculator.calculate_center_of_mass(z_fos, rho_fos)
+        center_of_mass_fos = calculator_fos.calculate_center_of_mass(z_fos, rho_fos)
         self.cm_fos_calculated.set_data([center_of_mass_fos], [0])
         center_of_mass_spherical_fit = BetaDeformationCalculator.calculate_center_of_mass_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
         self.cm_spherical_fit_calculated.set_data([center_of_mass_spherical_fit - cumulative_shift], [0])
@@ -682,7 +682,7 @@ class FoSShapePlotter:
 
         # Calculate the ratio of calculated CM to theoretical shift, if NaN, set to 0
         # cm_ratio = (
-        #     calculator.calculate_center_of_mass(z_fos, rho_fos) / current_params.z_sh
+        #     calculator_fos.calculate_center_of_mass(z_fos, rho_fos) / current_params.z_sh
         #     if current_params.z_sh != 0 else 0.0
         # )
 
@@ -699,7 +699,7 @@ class FoSShapePlotter:
         self.ax_plot.set_ylim(-max_val, max_val)
 
         # Calculate the volume of the plotted shape for verification
-        shape_volume = calculator.calculate_volume_in_cylindrical_coordinates(z_fos, rho_fos)
+        fos_shape_volume = calculator_fos.calculate_volume_in_cylindrical_coordinates(z_fos, rho_fos)
 
         # Calculate dimensions
         max_z = np.max(np.abs(z_fos))
@@ -714,8 +714,9 @@ class FoSShapePlotter:
         # Add information text
         info_text = (
             f"R₀ = {current_params.radius0:.3f} fm\n"
-            f"a₂ = {current_params.a2:.3f} (volume conservation)\n"
             f"\nParameter Relations:\n"
+            f"a₂ = a₄/3 - a₆/5\n"
+            f"a₂ = {current_params.a4:.3f} / 3.0 - {current_params.a6:.3f} / 5.0 = {current_params.a2:.3f}\n"
             f"c = q₂ + 1.0 + 1.5a₄\n"
             f"c = {current_params.q2:.3f} + 1.0 + 1.5×{current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
             f"\nShift Information:\n"
@@ -729,8 +730,9 @@ class FoSShapePlotter:
             # f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference sphere volume: {current_params.sphere_volume:.3f} fm³\n"
-            f"FoS shape volume: {shape_volume:.3f} fm³\n"
+            f"FoS shape volume: {fos_shape_volume:.3f} fm³\n"
             f"Beta shape volume: {beta_volume:.3f} fm³\n"
+            f"\nSurface Information:\n"
             f"\nShape dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
