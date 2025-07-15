@@ -124,8 +124,8 @@ class FoSShapeCalculator:
             rho: radial coordinates
         """
         # Calculate shape without a shift first
-        z_min:float = -self.params.z0 + self.params.z_sh
-        z_max:float = self.params.z0 + self.params.z_sh
+        z_min: float = -self.params.z0 + self.params.z_sh
+        z_max: float = self.params.z0 + self.params.z_sh
         z = np.linspace(z_min, z_max, n_points)
 
         # Calculate normalized u with shift in z
@@ -224,9 +224,10 @@ class FoSShapeCalculator:
 class FoSShapePlotter:
     """Class for plotting Fourier-over-Spheroid nuclear shapes."""
 
-    def __init__(self):
+    def __init__(self, number_of_shape_points: int = 720):
         """Initialize the plotter with default settings."""
-        # Default parameters
+        self.number_of_shape_points = number_of_shape_points
+        # Default shape parameters
         self.initial_z = 92  # Uranium
         self.initial_n = 144
         self.initial_q2 = 0.0
@@ -605,7 +606,7 @@ class FoSShapePlotter:
 
             # First, check if the shape can be unambiguously converted
             cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
-            is_convertible = cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=720, tolerance=1e-9)
+            is_convertible = cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=self.number_of_shape_points, tolerance=1e-9)
 
             # If not convertible, try shifting
             if not is_convertible:
@@ -624,7 +625,7 @@ class FoSShapePlotter:
 
                     # Check if now convertible
                     cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos)
-                    if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=720, tolerance=1e-9):
+                    if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=self.number_of_shape_points, tolerance=1e-9):
                         is_convertible = True
                         is_converted = True
                         break
@@ -633,10 +634,10 @@ class FoSShapePlotter:
             if is_convertible:
 
                 theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=720)
-                y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=720)
+                y_fos, x_fos = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=self.number_of_shape_points)
 
                 # Validate the conversion
-                validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=720)
+                validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=self.number_of_shape_points)
                 conversion_root_mean_squared_error = validation['root_mean_squared_error']
 
                 # Update spherical FoS shape lines (shift back for plotting if needed)
@@ -758,6 +759,7 @@ class FoSShapePlotter:
 
         # Add information text
         info_text = (
+            f"Shape Points: {self.number_of_shape_points}\n"
             f"R₀ = {current_params.radius0:.3f} fm\n"
             f"\nParameter Relations:\n"
             f"a₂ = a₄/3 - a₆/5\n"
@@ -830,7 +832,9 @@ class FoSShapePlotter:
 
 def main():
     """Main entry point for the application."""
-    plotter = FoSShapePlotter()
+    # Number of points for the shape calculation
+    number_of_points = 720
+    plotter = FoSShapePlotter(number_of_shape_points=number_of_points)
     plotter.run()
 
 
