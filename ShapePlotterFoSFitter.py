@@ -760,7 +760,7 @@ class FoSShapePlotter:
         )
 
         # Update legend
-        self.ax_plot.legend(loc='upper right', bbox_to_anchor=(-0.1, 1))
+        self.ax_plot.legend(loc='upper right', bbox_to_anchor=(-0.05, 1))
 
         self.fig.canvas.draw_idle()
 
