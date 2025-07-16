@@ -557,6 +557,8 @@ class FoSShapePlotter:
         self.slider_a5.set_val(self.initial_a5)
         self.slider_a6.set_val(self.initial_a6)
         self.slider_c.set_val(self.initial_c)
+        self.slider_max_beta.set_val(12)
+        self.slider_number_of_points.set_val(720)
         self.updating = False
         self.update_plot(None)
 
@@ -872,9 +874,9 @@ class FoSShapePlotter:
             f"\nFit Information:\n"
             f"RMSE (Spherical Coords Conversion): {conversion_root_mean_squared_error:.3f} fm\n"
             f"Absolute RMSE (Beta Analytical Method): {rmse_beta_fit:.3f} fm\n"
-            f"Relative (RMSE/R₀) RMSE (Beta Analytical Method): {rmse_beta_fit / current_params.radius0 * 100:.3f} %\n"
+            f"Relative (RMSE/RMS(r)) RMSE (Beta Analytical Method): {rmse_beta_fit / np.sqrt(np.mean(radius_fos ** 2)) * 100:.3f} %\n"
             f"Absolute RMSE (Beta Fitting Method): {rmse_fitting:.3f} fm\n"
-            f"Relative (RMSE/R₀) RMSE (Beta Fitting Method): {rmse_fitting / current_params.radius0 * 100:.3f} %\n"
+            f"Relative (RMSE/RMS(r)) RMSE (Beta Fitting Method): {rmse_fitting / np.sqrt(np.mean(radius_fos ** 2)) * 100:.3f} %\n"
             f"Radius Fixing Factor Difference: {abs(scaling_factor_fitted - scaling_factor_volume):.6f}"
         )
 
