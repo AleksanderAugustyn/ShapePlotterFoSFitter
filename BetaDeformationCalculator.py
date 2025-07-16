@@ -234,3 +234,103 @@ class BetaDeformationCalculator:
         radius_reconstructed = radius_fixing_factor * radius_pre_normalization
 
         return theta_reconstructed, radius_reconstructed
+
+    def _reconstruct_shape_with_scaling(self, beta_list: np.ndarray, scaling_factor: float,
+                                        l_values: list, theta_eval: np.ndarray) -> np.ndarray:
+        """
+        Reconstruct shape with an explicit scaling factor (used for fitting).
+
+        Args:
+            beta_list: Array of beta values
+            scaling_factor: Radius scaling factor
+            l_values: List of l values corresponding to beta_list
+            theta_eval: Theta values at which to evaluate
+
+        Returns:
+            Array of reconstructed radii
+        """
+        radius = np.ones_like(theta_eval) * self.radius0
+
+        for i, (l, beta_l) in enumerate(zip(l_values, beta_list)):
+            phi = 0
+            ylm = sph_harm_y(l, 0, theta_eval, phi).real
+            radius += self.radius0 * beta_l * ylm
+
+        return scaling_factor * radius
+
+    def fit_beta_parameters_rmse(self, l_max: int = 12) -> Dict[str, any]:
+        """
+        Fit β_λ0 deformation parameters by minimizing RMSE.
+
+        This method treats the radius scaling factor as a free parameter
+        during optimization, then compares with the volume-based scaling.
+
+        Args:
+            l_max: Maximum l value to fit
+
+        Returns:
+            Dictionary containing:
+                - 'beta_fitted': Dictionary of fitted beta parameters
+                - 'scaling_factor_fitted': Fitted radius scaling factor
+                - 'scaling_factor_volume': Volume-based scaling factor
+                - 'rmse': Root mean square error of the fit
+                - 'beta_analytical': Analytical beta parameters for comparison
+        """
+        from scipy.optimize import minimize
+
+        # Get an analytical solution as an initial guess
+        beta_analytical = self.calculate_beta_parameters(l_max)
+
+        # Prepare optimization
+        l_values = list(range(1, l_max + 1))
+        beta_initial = np.array([beta_analytical.get(l, 0.0) for l in l_values])
+
+        # Add a scaling factor as the last parameter (start with 1.0)
+        params_initial = np.append(beta_initial, 1.0)
+
+        # Define objective function
+        def objective(params):
+            beta_values = params[:-1]
+            scaling_factor = params[-1]
+
+            # Reconstruct shape
+            r_reconstructed = self._reconstruct_shape_with_scaling(
+                beta_values, scaling_factor, l_values, self.theta
+            )
+
+            # Calculate RMSE
+            rmse = np.sqrt(np.mean((r_reconstructed - self.r) ** 2))
+            return rmse
+
+        # Optimize
+        result = minimize(objective, params_initial, method='L-BFGS-B')
+
+        # Extract results
+        beta_fitted_array = result.x[:-1]
+        scaling_factor_fitted = result.x[-1]
+
+        # Convert to dictionary
+        beta_fitted = {l: beta for l, beta in zip(l_values, beta_fitted_array)}
+
+        # Calculate what the scaling factor should be based on volume
+        theta_test = np.linspace(0, np.pi, len(self.theta))
+        radius_unnormalized = self._reconstruct_shape_with_scaling(
+            beta_fitted_array, 1.0, l_values, theta_test
+        )
+        volume_unnormalized = self.calculate_volume_in_spherical_coordinates(
+            radius_unnormalized, theta_test
+        )
+        sphere_volume = (4 / 3) * np.pi * self.radius0 ** 3
+        volume_fixing_factor = sphere_volume / volume_unnormalized
+        scaling_factor_volume = volume_fixing_factor ** (1 / 3)
+
+        # Calculate final RMSE
+        final_rmse = result.fun
+
+        return {
+            'beta_fitted': beta_fitted,
+            'scaling_factor_fitted': scaling_factor_fitted,
+            'scaling_factor_volume': scaling_factor_volume,
+            'rmse': final_rmse,
+            'beta_analytical': beta_analytical
+        }

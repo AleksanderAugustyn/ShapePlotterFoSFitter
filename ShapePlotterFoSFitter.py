@@ -250,6 +250,8 @@ class FoSShapePlotter:
         self.line_fos_spherical_shifted_for_conversion_mirror = None
         self.line_beta = None
         self.line_beta_mirror = None
+        self.line_beta_fitted = None
+        self.line_beta_fitted_mirror = None
         self.reference_sphere_line = None
         self.cm_reference_point = None
         self.cm_fos_calculated = None
@@ -342,9 +344,13 @@ class FoSShapePlotter:
         self.line_fos_spherical_shifted_for_conversion, = self.ax_plot.plot([], [], 'g:', label='FoS shape (spherical, shifted for conversion)', linewidth=1.5, alpha=0.5)
         self.line_fos_spherical_shifted_for_conversion_mirror, = self.ax_plot.plot([], [], 'g:', linewidth=1.5, alpha=0.5)
 
-        # Plot the beta shape and its mirror
-        self.line_beta, = self.ax_plot.plot([], [], 'r--', label='Beta shape (normalized)', linewidth=2, alpha=0.7)
+        # Plot the beta shape and its mirror (analytical)
+        self.line_beta, = self.ax_plot.plot([], [], 'r--', label='Beta shape (analytical)', linewidth=2, alpha=0.7)
         self.line_beta_mirror, = self.ax_plot.plot([], [], 'r--', linewidth=2, alpha=0.7)
+
+        # Plot the beta shape and its mirror (fitted)
+        self.line_beta_fitted, = self.ax_plot.plot([], [], 'm-.', label='Beta shape (fitted)', linewidth=2, alpha=0.7)
+        self.line_beta_fitted_mirror, = self.ax_plot.plot([], [], 'm-.', linewidth=2, alpha=0.7)
 
         self.reference_sphere_line, = self.ax_plot.plot(sphere_x, sphere_y, '--', color='gray', alpha=0.5, label=f'R₀={r0:.2f} fm')
 
@@ -589,16 +595,22 @@ class FoSShapePlotter:
         self.line_fos_mirror.set_data(z_fos_cylindrical, -rho_fos_cylindrical)
 
         # Update beta shape lines and spherical FoS shape lines
+        center_of_mass_beta_fitted: float = 0.0
         fos_spherical_volume: float = 0.0
         beta_volume: float = 0.0
+        beta_volume_fitted: float = 0.0
         fos_spherical_surface_area: float = 0.0
         beta_surface_area: float = 0.0
+        beta_surface_area_fitted: float = 0.0
         radius_fos: np.ndarray = np.array([])
         theta_fos: np.ndarray = np.array([])
         radius_beta: np.ndarray = np.array([])
         theta_beta: np.ndarray = np.array([])
         conversion_root_mean_squared_error: float = 0.0
         rmse_beta_fit: float = 0.0
+        rmse_fitting: float = 0.0
+        scaling_factor_fitted: float = 0.0
+        scaling_factor_volume: float = 0.0
         is_converted: bool = False
         cumulative_shift: float = 0.0
 
@@ -654,57 +666,112 @@ class FoSShapePlotter:
                     self.line_fos_spherical_shifted_for_conversion.set_data([], [])
                     self.line_fos_spherical_shifted_for_conversion_mirror.set_data([], [])
 
-                # Calculate beta parameters
+                # Calculate beta parameters using an analytical method
                 spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
                 l_max_value = int(self.slider_max_beta.val)
                 beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=l_max_value)
 
-                # Calculate the beta shape coordinates
+                # Calculate beta parameters using the RMSE fitting method
+                try:
+                    fitting_results = spherical_to_beta_converter.fit_beta_parameters_rmse(l_max=l_max_value)
+                    beta_parameters_fitted = fitting_results['beta_fitted']
+                    scaling_factor_fitted = fitting_results['scaling_factor_fitted']
+                    scaling_factor_volume = fitting_results['scaling_factor_volume']
+                    rmse_fitting = fitting_results['rmse']
+                except Exception as fit_error:
+                    print(f"Beta fitting error: {fit_error}")
+                    # Use analytical parameters as fallback
+                    beta_parameters_fitted = beta_parameters.copy()
+                    scaling_factor_fitted = 1.0
+                    scaling_factor_volume = 1.0
+                    rmse_fitting = -1.0  # Indicate fitting failed
+
+                # Calculate the beta shape coordinates (analytical)
                 theta_beta, radius_beta = spherical_to_beta_converter.reconstruct_shape(beta=beta_parameters, n_theta=current_number_of_points)
 
-                # Convert back to Cartesian coordinates
+                # Convert back to Cartesian coordinates (analytical)
                 z_beta = radius_beta * np.cos(theta_beta)
                 rho_beta = radius_beta * np.sin(theta_beta)
 
-                # Shift back the beta shape if we had shifted for conversion
+                # Calculate the beta shape coordinates (fitted)
+                theta_beta_fitted, radius_beta_fitted = spherical_to_beta_converter.reconstruct_shape(beta=beta_parameters_fitted, n_theta=current_number_of_points)
+
+                # Convert back to Cartesian coordinates (fitted)
+                z_beta_fitted = radius_beta_fitted * np.cos(theta_beta_fitted)
+                rho_beta_fitted = radius_beta_fitted * np.sin(theta_beta_fitted)
+
+                # Shift back the beta shapes if we had shifted for conversion
                 if abs(cumulative_shift) > 1e-10:
                     z_beta = z_beta - cumulative_shift
+                    z_beta_fitted = z_beta_fitted - cumulative_shift
 
-                # Update beta shape lines
+                # Update beta shape lines (analytical)
                 self.line_beta.set_data(z_beta, rho_beta)
                 self.line_beta_mirror.set_data(z_beta, -rho_beta)
 
-                # Calculate the volume for the spherical fit and beta fit
+                # Update beta shape lines (fitted)
+                self.line_beta_fitted.set_data(z_beta_fitted, rho_beta_fitted)
+                self.line_beta_fitted_mirror.set_data(z_beta_fitted, -rho_beta_fitted)
+
+                # Calculate the volume for the spherical fit and beta fits
                 fos_spherical_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
                 beta_volume = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
+                beta_volume_fitted = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius=radius_beta_fitted, theta=theta_beta_fitted)
 
-                # Calculate the surface area for the spherical fit and beta fit
+                # Calculate the surface area for the spherical fit and beta fits
                 fos_spherical_surface_area = BetaDeformationCalculator.calculate_surface_area_in_spherical_coordinates(radius=radius_fos, theta=theta_fos)
                 beta_surface_area = BetaDeformationCalculator.calculate_surface_area_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
+                beta_surface_area_fitted = BetaDeformationCalculator.calculate_surface_area_in_spherical_coordinates(radius=radius_beta_fitted, theta=theta_beta_fitted)
 
-                # Calculate RMSE for the beta fit
+                # Calculate RMSE for the beta fit (analytical)
                 rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_fos) ** 2))
 
-                # Get significant beta parameters
-                beta_strings = [f"β_{l:<2} = {val:.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) > 0.001]
-                if not beta_strings:
-                    significant_beta_parameters = "No significant beta parameters found."
+                # Get significant beta parameters (analytical)
+                beta_strings_analytical = [f"β_{l:<2} = {val:+.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) > 0.001]
+
+                # Get significant beta parameters (fitted)
+                beta_strings_fitted = [f"β_{l:<2} = {val:+.4f}" for l, val in sorted(beta_parameters_fitted.items()) if abs(val) > 0.001]
+
+                # Format analytical parameters
+                if not beta_strings_analytical:
+                    analytical_params_text = "No significant parameters found"
                 else:
-                    paired_betas = []
-                    for i in range(0, len(beta_strings), 2):
-                        col1 = beta_strings[i]
-                        if i + 1 < len(beta_strings):
-                            col2 = beta_strings[i + 1]
-                            paired_betas.append(f"{col1:<20} {col2}")
+                    paired_analytical = []
+                    for i in range(0, len(beta_strings_analytical), 2):
+                        col1 = beta_strings_analytical[i]
+                        if i + 1 < len(beta_strings_analytical):
+                            col2 = beta_strings_analytical[i + 1]
+                            paired_analytical.append(f"{col1:<20} {col2}")
                         else:
-                            paired_betas.append(col1)
-                    significant_beta_parameters = "\n".join(paired_betas)
+                            paired_analytical.append(col1)
+                    analytical_params_text = "\n".join(paired_analytical)
+
+                # Format fitted parameters
+                if not beta_strings_fitted:
+                    fitted_params_text = "No significant parameters found"
+                else:
+                    paired_fitted = []
+                    for i in range(0, len(beta_strings_fitted), 2):
+                        col1 = beta_strings_fitted[i]
+                        if i + 1 < len(beta_strings_fitted):
+                            col2 = beta_strings_fitted[i + 1]
+                            paired_fitted.append(f"{col1:<20} {col2}")
+                        else:
+                            paired_fitted.append(col1)
+                    fitted_params_text = "\n".join(paired_fitted)
+
+                significant_beta_parameters = (
+                        "ANALYTICAL METHOD:\n" + analytical_params_text + "\n\n" +
+                        "FITTED METHOD (RMSE minimization):\n" + fitted_params_text
+                )
             else:
                 # Could not make shape convertible
                 self.line_fos_spherical.set_data([], [])
                 self.line_fos_spherical_mirror.set_data([], [])
                 self.line_beta.set_data([], [])
                 self.line_beta_mirror.set_data([], [])
+                self.line_beta_fitted.set_data([], [])
+                self.line_beta_fitted_mirror.set_data([], [])
                 significant_beta_parameters = "Shape could not be made convertible"
 
         except Exception as e:
@@ -713,6 +780,8 @@ class FoSShapePlotter:
             self.line_fos_spherical_mirror.set_data([], [])
             self.line_beta.set_data([], [])
             self.line_beta_mirror.set_data([], [])
+            self.line_beta_fitted.set_data([], [])
+            self.line_beta_fitted_mirror.set_data([], [])
             significant_beta_parameters = "Calculation Error"
 
         # Update center of mass points
@@ -776,19 +845,22 @@ class FoSShapePlotter:
             f"\nCenter of Mass:\n"
             f"Calculated CM (FoS Cylindrical): {center_of_mass_fos:.3f} fm\n"
             f"Calculated CM (FoS Spherical Fit): {center_of_mass_spherical_fit - cumulative_shift:.3f} fm\n"
-            f"Calculated CM (FoS Beta Fit): {center_of_mass_beta_fit - cumulative_shift:.3f} fm\n"
+            f"Calculated CM (Beta Analytical): {center_of_mass_beta_fit - cumulative_shift:.3f} fm\n"
+            f"Calculated CM (Beta Fitted): {center_of_mass_beta_fitted - cumulative_shift:.3f} fm\n"
             f"Calculated CM (FoS Spherical Fit, Shifted): {center_of_mass_spherical_fit:.3f} fm\n"
             # f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference Sphere Volume: {current_params.sphere_volume:.3f} fm³\n"
             f"FoS (Cylindrical) Shape Volume: {fos_shape_volume:.3f} fm³\n"
             f"FoS (Spherical) Shape Volume: {fos_spherical_volume:.3f} fm³\n"
-            f"Beta Shape Volume: {beta_volume:.3f} fm³\n"
+            f"Beta Shape Volume (Analytical): {beta_volume:.3f} fm³\n"
+            f"Beta Shape Volume (Fitted): {beta_volume_fitted:.3f} fm³\n"
             f"\nSurface Information:\n"
             f"Reference Sphere Surface Area: {current_params.sphere_surface_area:.3f} fm²\n"
             f"FoS (Cylindrical) Shape Surface Area: {fos_cylindrical_surface_area:.3f} fm²\n"
             f"FoS (Spherical) Shape Surface Area: {fos_spherical_surface_area:.3f} fm²\n"
-            f"Beta Shape Surface Area: {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f} % of FoS (Cylindrical))\n"
+            f"Beta Shape Surface Area (Analytical): {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f}% of FoS)\n"
+            f"Beta Shape Surface Area (Fitted): {beta_surface_area_fitted:.3f} fm² ({beta_surface_area_fitted / fos_cylindrical_surface_area * 100:.3f}% of FoS)\n"
             f"\nShape Dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
@@ -799,7 +871,11 @@ class FoSShapePlotter:
             f"Shape is Originally Unambiguously Convertible: {'Yes' if not is_converted else 'No'}\n"
             f"\nFit Information:\n"
             f"RMSE (Spherical Coords Conversion): {conversion_root_mean_squared_error:.3f} fm\n"
-            f"RMSE (Beta Parametrization Fit): {rmse_beta_fit:.3f} fm"
+            f"Absolute RMSE (Beta Analytical Method): {rmse_beta_fit:.3f} fm\n"
+            f"Relative (RMSE/R₀) RMSE (Beta Analytical Method): {rmse_beta_fit / current_params.radius0 * 100:.3f} %\n"
+            f"Absolute RMSE (Beta Fitting Method): {rmse_fitting:.3f} fm\n"
+            f"Relative (RMSE/R₀) RMSE (Beta Fitting Method): {rmse_fitting / current_params.radius0 * 100:.3f} %\n"
+            f"Radius Fixing Factor Difference: {abs(scaling_factor_fitted - scaling_factor_volume):.6f}"
         )
 
         # Remove old text if it exists
@@ -812,7 +888,7 @@ class FoSShapePlotter:
                           bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
         # Add beta parameters text to the right side of the right text area
-        beta_text_obj = self.ax_text.text(0.55, 1.0, f"Significant Beta Parameters (>0.001), Analitical:\n{significant_beta_parameters}",
+        beta_text_obj = self.ax_text.text(0.55, 1.0, f"Significant Beta Parameters (>0.001):\n{significant_beta_parameters}",
                                           transform=self.ax_text.transAxes,
                                           fontsize=10, verticalalignment='top', horizontalalignment='left',
                                           bbox={'boxstyle': 'round', 'facecolor': 'lightblue', 'alpha': 0.5}, fontfamily='monospace')
@@ -837,7 +913,6 @@ class FoSShapePlotter:
 
 def main():
     """Main entry point for the application."""
-    # Number of points for the shape calculation
     plotter = FoSShapePlotter()
     plotter.run()
 
