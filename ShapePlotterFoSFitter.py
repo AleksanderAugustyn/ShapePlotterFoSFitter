@@ -788,10 +788,11 @@ class FoSShapePlotter:
             f"Reference Sphere Surface Area: {current_params.sphere_surface_area:.3f} fm²\n"
             f"FoS (Cylindrical) Shape Surface Area: {fos_cylindrical_surface_area:.3f} fm²\n"
             f"FoS (Spherical) Shape Surface Area: {fos_spherical_surface_area:.3f} fm²\n"
-            f"Beta Shape Surface Area: {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f} % of FoS (cylindrical)\n"
+            f"Beta Shape Surface Area: {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f} % of FoS (Cylindrical))\n"
             f"\nShape Dimensions:\n"
             f"Max z: {max_z:.2f} fm\n"
             f"Max ρ: {max_rho:.2f} fm\n"
+            f"Length along z: {abs(np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)):.2f} fm\n"
             f"Neck Radius: {neck_radius:.2f} fm\n"
             f"Calculated c (Elongation): {max_z / current_params.radius0:.3f}\n"
             f"\nConversion Information:\n"
@@ -811,7 +812,7 @@ class FoSShapePlotter:
                           bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
         # Add beta parameters text to the right side of the right text area
-        beta_text_obj = self.ax_text.text(0.55, 1.0, f"Significant Beta Parameters (>0.001):\n{significant_beta_parameters}",
+        beta_text_obj = self.ax_text.text(0.55, 1.0, f"Significant Beta Parameters (>0.001), Analitical:\n{significant_beta_parameters}",
                                           transform=self.ax_text.transAxes,
                                           fontsize=10, verticalalignment='top', horizontalalignment='left',
                                           bbox={'boxstyle': 'round', 'facecolor': 'lightblue', 'alpha': 0.5}, fontfamily='monospace')
