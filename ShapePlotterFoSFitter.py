@@ -275,6 +275,7 @@ class FoSShapePlotter:
         # Buttons
         self.reset_button = None
         self.save_button = None
+        self.save_spherical_button = None
         self.preset_buttons = []
 
         # Decrement/Increment buttons for sliders
@@ -427,6 +428,9 @@ class FoSShapePlotter:
         ax_save = plt.axes((0.82, 0.32, 0.08, 0.032))
         self.save_button = Button(ax=ax_save, label='Save Plot')
 
+        ax_save_spherical = plt.axes((0.82, 0.27, 0.08, 0.032))
+        self.save_spherical_button = Button(ax=ax_save_spherical, label='Save Coords')
+
         # Create preset buttons
         preset_labels = ['Sphere', 'Prolate', 'Oblate', 'Pear-shaped', 'Two-center', 'Scission']
         for i, label in enumerate(preset_labels):
@@ -479,6 +483,7 @@ class FoSShapePlotter:
         # Connect button handlers
         self.reset_button.on_clicked(self.reset_values)
         self.save_button.on_clicked(self.save_plot)
+        self.save_spherical_button.on_clicked(self.save_spherical_coordinates)
 
         # Connect preset buttons
         for i, btn in enumerate(self.preset_buttons):
@@ -570,6 +575,94 @@ class FoSShapePlotter:
                    f"{'_'.join(f'{p:.3f}' for p in params)}.png"
         self.fig.savefig(filename, dpi=300, bbox_inches='tight')
         print(f"Plot saved as {filename}")
+
+    def save_spherical_coordinates(self, _):
+        """Save the spherical coordinates to a file in the format: r theta Phi"""
+        try:
+            # Get current parameters
+            current_params = FoSParameters(
+                protons=int(self.slider_z.val),
+                neutrons=int(self.slider_n.val),
+                c_elongation=self.slider_c.val,
+                q2=self.slider_q2.val,
+                a3=self.slider_a3.val,
+                a4=self.slider_a4.val,
+                a5=self.slider_a5.val,
+                a6=self.slider_a6.val
+            )
+
+            # Calculate shape
+            calculator_fos = FoSShapeCalculator(current_params)
+            current_number_of_points = int(self.slider_number_of_points.val)
+            z_fos_cylindrical, rho_fos_cylindrical = calculator_fos.calculate_shape(n_points=current_number_of_points)
+
+            # Prepare for conversion
+            z_work = z_fos_cylindrical.copy()
+            cumulative_shift = 0.0
+            is_converted = False
+
+            # Check if the shape can be unambiguously converted
+            cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos_cylindrical)
+            is_convertible = cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=current_number_of_points, tolerance=1e-9)
+
+            # If not convertible, try shifting
+            if not is_convertible:
+                z_step = 0.1  # fm
+                shift_direction = -1.0 if current_params.z_sh >= 0 else 1.0
+                z_length = np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)
+                max_shift = z_length / 2.0
+
+                while abs(cumulative_shift) < max_shift:
+                    cumulative_shift += shift_direction * z_step
+                    z_work = z_fos_cylindrical + cumulative_shift
+
+                    cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos_cylindrical)
+                    if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=current_number_of_points, tolerance=1e-9):
+                        is_convertible = True
+                        is_converted = True
+                        break
+
+            if not is_convertible:
+                print("Error: Shape cannot be converted to spherical coordinates")
+                return
+
+            # Convert to spherical coordinates
+            theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=current_number_of_points)
+
+            # Generate phi values from 0 to 2π with 360 steps
+            phi_values = np.linspace(0, 2 * np.pi, 360)
+
+            # Create filename
+            params = [self.slider_c.val, self.slider_q2.val, self.slider_a3.val,
+                      self.slider_a4.val, self.slider_a5.val, self.slider_a6.val]
+            filename = f"spherical_coords_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + \
+                       f"{'_'.join(f'{p:.3f}' for p in params)}.dat"
+
+            # Save to file
+            with open(filename, 'w') as f:
+                f.write("# Spherical coordinates: r theta/180*Pi Phi/180*Pi\n")
+                f.write(f"# Z={int(self.slider_z.val)}, N={int(self.slider_n.val)}\n")
+                f.write(f"# Parameters: c={self.slider_c.val:.3f}, q2={self.slider_q2.val:.3f}, a3={self.slider_a3.val:.3f}, a4={self.slider_a4.val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}\n")
+                if is_converted:
+                    f.write(f"# Shape was shifted by {cumulative_shift:.3f} fm for conversion\n")
+                f.write(f"# Total points: {len(theta_fos) * len(phi_values)}\n")
+                f.write("# Format: r(fm) theta (radians) phi (radians)\n")
+
+                for i, (r, theta) in enumerate(zip(radius_fos, theta_fos)):
+                    for phi in phi_values:
+                        # Convert theta and phi to normalized form (divided by π)
+                        # x = r * np.sin(theta) * np.cos(phi)
+                        # y = r * np.sin(theta) * np.sin(phi)
+                        # z = r * np.cos(theta)
+                        f.write(f"{r:.6f} {theta:.6f} {phi:.6f}\n")
+
+            print(f"Spherical coordinates saved as {filename}")
+            print(f"Total points saved: {len(theta_fos) * len(phi_values)}")
+            if is_converted:
+                print(f"Note: Shape was shifted by {cumulative_shift:.3f} fm for conversion")
+
+        except Exception as e:
+            print(f"Error saving spherical coordinates: {e}")
 
     def update_plot(self, _):
         """Update the plot with new parameters."""
