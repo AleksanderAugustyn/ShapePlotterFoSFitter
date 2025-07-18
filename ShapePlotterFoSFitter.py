@@ -275,7 +275,7 @@ class FoSShapePlotter:
         # Buttons
         self.reset_button = None
         self.save_button = None
-        self.save_spherical_button = None
+        self.save_coordinates_to_files_button = None
         self.preset_buttons = []
 
         # Decrement/Increment buttons for sliders
@@ -429,7 +429,7 @@ class FoSShapePlotter:
         self.save_button = Button(ax=ax_save, label='Save Plot')
 
         ax_save_spherical = plt.axes((0.82, 0.27, 0.08, 0.032))
-        self.save_spherical_button = Button(ax=ax_save_spherical, label='Save Coords')
+        self.save_coordinates_to_files_button = Button(ax=ax_save_spherical, label='Save Spherical Fit Coords')
 
         # Create preset buttons
         preset_labels = ['Sphere', 'Prolate', 'Oblate', 'Pear-shaped', 'Two-center', 'Scission']
@@ -483,7 +483,7 @@ class FoSShapePlotter:
         # Connect button handlers
         self.reset_button.on_clicked(self.reset_values)
         self.save_button.on_clicked(self.save_plot)
-        self.save_spherical_button.on_clicked(self.save_spherical_coordinates)
+        self.save_coordinates_to_files_button.on_clicked(self.save_coordinates_to_files)
 
         # Connect preset buttons
         for i, btn in enumerate(self.preset_buttons):
@@ -576,8 +576,10 @@ class FoSShapePlotter:
         self.fig.savefig(filename, dpi=300, bbox_inches='tight')
         print(f"Plot saved as {filename}")
 
-    def save_spherical_coordinates(self, _):
-        """Save the spherical coordinates to a file in the format: r theta Phi"""
+    def save_coordinates_to_files(self, _):
+        """Save the spherical coordinates to a file in the format: r theta Phi
+           and Cartesian coordinates in the format: x y z.
+        """
         try:
             # Get current parameters
             current_params = FoSParameters(
@@ -635,12 +637,13 @@ class FoSShapePlotter:
             # Create filename
             params = [self.slider_c.val, self.slider_q2.val, self.slider_a3.val,
                       self.slider_a4.val, self.slider_a5.val, self.slider_a6.val]
-            filename = f"spherical_coords_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + \
-                       f"{'_'.join(f'{p:.3f}' for p in params)}.dat"
+            filename_spherical = f"spherical_coords_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + f"{'_'.join(f'{p:.3f}' for p in params)}.dat"
+            filename_cartesian = f"cartesian_coords_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + f"{'_'.join(f'{p:.3f}' for p in params)}.dat"
 
-            # Save to file
-            with open(filename, 'w') as f:
-                f.write("# Spherical coordinates: r theta/180*Pi Phi/180*Pi\n")
+            # Save to files
+            with open(filename_spherical, 'w') as f:
+                # Write header for spherical coordinates
+                f.write("# Spherical coordinates: r theta(radians) Phi (radians)\n")
                 f.write(f"# Z={int(self.slider_z.val)}, N={int(self.slider_n.val)}\n")
                 f.write(f"# Parameters: c={self.slider_c.val:.3f}, q2={self.slider_q2.val:.3f}, a3={self.slider_a3.val:.3f}, a4={self.slider_a4.val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}\n")
                 if is_converted:
@@ -650,17 +653,31 @@ class FoSShapePlotter:
 
                 for i, (r, theta) in enumerate(zip(radius_fos, theta_fos)):
                     for phi in phi_values:
-                        # Convert theta and phi to normalized form (divided by π)
-                        # x = r * np.sin(theta) * np.cos(phi)
-                        # y = r * np.sin(theta) * np.sin(phi)
-                        # z = r * np.cos(theta)
                         f.write(f"{r:.6f} {theta:.6f} {phi:.6f}\n")
 
-            print(f"Spherical coordinates saved as {filename}")
+            with open(filename_cartesian, 'w') as f_cartesian:
+                # Write header for Cartesian coordinates
+                f_cartesian.write("# Cartesian coordinates: x y z\n")
+                f_cartesian.write(f"# Z={int(self.slider_z.val)}, N={int(self.slider_n.val)}\n")
+                f_cartesian.write(f"# Parameters: c={self.slider_c.val:.3f}, q2={self.slider_q2.val:.3f}, a3={self.slider_a3.val:.3f}, a4={self.slider_a4.val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}\n")
+                if is_converted:
+                    f_cartesian.write(f"# Shape was shifted by {cumulative_shift:.3f} fm for conversion\n")
+                f_cartesian.write(f"# Total points: {len(theta_fos) * len(phi_values)}\n")
+                f_cartesian.write("# Format: x(fm) y(fm) z(fm)\n")
+
+                for i, (r, theta) in enumerate(zip(radius_fos, theta_fos)):
+                    for phi in phi_values:
+                        # Convert theta and phi to Cartesian coordinates
+                        x = r * np.sin(theta) * np.cos(phi)
+                        y = r * np.sin(theta) * np.sin(phi)
+                        z = r * np.cos(theta)
+                        f_cartesian.write(f"{x:.6f} {y:.6f} {z:.6f}\n")
+
+            print(f"Spherical coordinates saved as {filename_spherical}")
+            print(f"Cartesian coordinates saved as {filename_cartesian}")
             print(f"Total points saved: {len(theta_fos) * len(phi_values)}")
             if is_converted:
                 print(f"Note: Shape was shifted by {cumulative_shift:.3f} fm for conversion")
-
         except Exception as e:
             print(f"Error saving spherical coordinates: {e}")
 
