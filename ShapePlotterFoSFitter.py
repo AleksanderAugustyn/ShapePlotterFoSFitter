@@ -1152,6 +1152,7 @@ class FoSShapePlotter:
             f"Relative (RMSE/RMS(r)) RMSE (Beta Analytical Method): {rmse_beta_fit / np.sqrt(np.mean(radius_fos ** 2)) * 100:.3f} %\n"
             f"Absolute RMSE (Beta Fitting Method): {rmse_fitting:.3f} fm\n"
             f"Relative (RMSE/RMS(r)) RMSE (Beta Fitting Method): {rmse_fitting / np.sqrt(np.mean(radius_fos ** 2)) * 100:.3f} %\n"
+            f"Radius Fixing Factor (Calculated): {scaling_factor_fitted:.6f}\n"
             f"Radius Fixing Factor Difference: {abs(scaling_factor_fitted - scaling_factor_volume):.6f}"
         )
 
