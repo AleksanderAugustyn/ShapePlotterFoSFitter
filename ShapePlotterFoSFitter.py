@@ -1125,7 +1125,6 @@ class FoSShapePlotter:
             f"Calculated CM (Beta Analytical): {center_of_mass_beta_fit - cumulative_shift:.3f} fm\n"
             f"Calculated CM (Beta Fitted): {center_of_mass_beta_fitted - cumulative_shift:.3f} fm\n"
             f"Calculated CM (FoS Spherical Fit, Shifted): {center_of_mass_spherical_fit:.3f} fm\n"
-            # f"Ratio of calculated CM to theoretical shift: {cm_ratio:.3f}\n"
             f"\nVolume Information:\n"
             f"Reference Sphere Volume: {current_params.sphere_volume:.3f} fm³\n"
             f"FoS (Cylindrical) Shape Volume: {fos_shape_volume:.3f} fm³\n"
