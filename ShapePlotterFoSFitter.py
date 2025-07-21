@@ -98,7 +98,7 @@ class FoSShapeCalculator:
         f: np.ndarray = 1.0 - u ** 2.0
 
         # Sum Fourier terms
-        sum_terms: float = 0.0
+        sum_terms: np.ndarray = np.zeros_like(u)
 
         # Add Fourier terms
         # k=1: a2 * cos((2 - 1) / 2 * π * u) + a3 sin(1 * π * u)
@@ -179,7 +179,7 @@ class FoSShapeCalculator:
         integrand = 2 * np.pi * rho[:-1] * np.sqrt(1 + d_rho_dz ** 2)
 
         # Use simpson rule to calculate the integral
-        surface_area: float = simpson(integrand, x=z[:-1])
+        surface_area: float = float(simpson(integrand, x=z[:-1]))
 
         return surface_area
 
@@ -197,7 +197,7 @@ class FoSShapeCalculator:
             volume: calculated volume of the shape in fm³
         """
         # Use the simpson rule to calculate the integral
-        volume: float = simpson(np.pi * rho[:-1] ** 2, x=z[:-1])
+        volume: float = float(simpson(np.pi * rho[:-1] ** 2, x=z[:-1]))
 
         return volume
 
@@ -215,10 +215,10 @@ class FoSShapeCalculator:
         rho_mid = (rho[1:] + rho[:-1]) / 2
 
         # Numerator: ∫ z ρ²(z) dz
-        numerator: float = simpson(z_mid * rho_mid ** 2, x=z[:-1])
+        numerator: float = float(simpson(z_mid * rho_mid ** 2, x=z[:-1]))
 
         # Denominator: ∫ ρ²(z) dz
-        denominator: float = simpson(rho_mid ** 2, x=z[:-1])
+        denominator: float = float(simpson(rho_mid ** 2, x=z[:-1]))
 
         if denominator == 0:
             return 0.0
