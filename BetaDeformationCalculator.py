@@ -32,8 +32,8 @@ class BetaDeformationCalculator:
         """
         self.theta = np.asarray(theta)
         self.r = np.asarray(radius)
-        self.r0 = 1.16
-        self.radius0 = 1.16 * number_of_nucleons ** (1 / 3)
+        self.r0: float = 1.16
+        self.radius0: float = 1.16 * number_of_nucleons ** (1 / 3)
 
         # Ensure theta is sorted
         sort_idx = np.argsort(self.theta)
@@ -44,7 +44,7 @@ class BetaDeformationCalculator:
         self.sin_theta = np.sin(self.theta)
 
         # Cache for spherical harmonics
-        self._ylm_cache = {}
+        self._ylm_cache: dict[Tuple[int, int], np.ndarray] = {}
 
     def _get_ylm(self, l: int, m: int = 0) -> np.ndarray:
         """
@@ -147,7 +147,7 @@ class BetaDeformationCalculator:
         integrand = 2 * np.pi * radius[:-1] * np.sin(theta[:-1]) * np.sqrt(radius[:-1] ** 2 + dr_dtheta ** 2)
 
         # Integrate using Simpson's rule
-        surface_area: float = simpson(integrand, x=theta[:-1])
+        surface_area: float = float(simpson(integrand, x=theta[:-1]))
 
         return surface_area
 
@@ -167,7 +167,7 @@ class BetaDeformationCalculator:
         """
         # Volume integral in spherical coordinates
         integrand = radius ** 3 * np.sin(theta)
-        volume: float = simpson(integrand, x=theta) * 2 / 3 * np.pi
+        volume: float = float(simpson(integrand, x=theta) * 2 / 3 * np.pi)
 
         return volume
 
@@ -186,10 +186,10 @@ class BetaDeformationCalculator:
             Center of mass in spherical coordinates
         """
         # Numerator: 2π ∫ r(θ)³ sin(θ) cos(θ) dr dθ = 1/2 π r(θ)⁴ ∫ sin(θ) cos(θ) dθ
-        numerator = simpson(1 / 2 * np.pi * radius ** 4 * np.sin(theta) * np.cos(theta), x=theta)
+        numerator: float = float(simpson(1 / 2 * np.pi * radius ** 4 * np.sin(theta) * np.cos(theta), x=theta))
 
         # Denominator: Volume integral = 2π ∫ r(θ)² sin(θ) dr dθ
-        denominator = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius, theta)
+        denominator: float = BetaDeformationCalculator.calculate_volume_in_spherical_coordinates(radius, theta)
 
         if denominator == 0:
             return 0.0
@@ -258,7 +258,7 @@ class BetaDeformationCalculator:
 
         return scaling_factor * radius
 
-    def fit_beta_parameters_rmse(self, l_max: int = 12) -> Dict[str, any]:
+    def fit_beta_parameters_rmse(self, l_max: int = 12) -> Dict[str, float | Dict[int, float]]:
         """
         Fit β_λ0 deformation parameters by minimizing RMSE.
 

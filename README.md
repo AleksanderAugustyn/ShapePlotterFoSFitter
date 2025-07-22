@@ -173,7 +173,7 @@ This tool is valuable for:
 ## Technical Features
 
 - **Real-time Parameter Coupling**: Automatic handling of entangled parameters (c, q₂, a₄)
-- **Multi-threaded Calculations**: Efficient computation of coordinate transformations and beta fitting
+- **Multithreaded Calculations**: Efficient computation of coordinate transformations and beta fitting
 - **Robust Numerical Methods**: Error handling and validation for edge cases in shape calculations
 - **Interactive Visualization**: Dynamic updating of all plot elements with parameter changes
 - **Comprehensive Information Display**: Detailed parameter relationships, physical quantities, and fitting metrics

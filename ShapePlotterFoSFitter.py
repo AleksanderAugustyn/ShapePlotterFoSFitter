@@ -392,16 +392,16 @@ class FoSShapePlotter:
     def __init__(self):
         """Initialize the plotter with default settings."""
         # Default shape parameters
-        self.initial_z = 92  # Uranium
-        self.initial_n = 144
-        self.initial_q2 = 0.0
-        self.initial_a3 = 0.0
-        self.initial_a4 = 0.0
-        self.initial_a5 = 0.0
-        self.initial_a6 = 0.0
+        self.initial_z: int = 92  # Uranium
+        self.initial_n: int = 144
+        self.initial_q2: float = 0.0
+        self.initial_a3: float = 0.0
+        self.initial_a4: float = 0.0
+        self.initial_a5: float = 0.0
+        self.initial_a6: float = 0.0
 
         # Calculate initial c from q2 and a4
-        self.initial_c = self.initial_q2 + 1.0 + 1.5 * self.initial_a4
+        self.initial_c: float = self.initial_q2 + 1.0 + 1.5 * self.initial_a4
 
         # UI elements
         self.fig = None
@@ -617,16 +617,19 @@ class FoSShapePlotter:
         preset = presets[preset_num]
         self.updating = True
 
-        # Set the parameters
-        self.slider_a3.set_val(preset['a3'])
-        self.slider_a4.set_val(preset['a4'])
-        self.slider_a5.set_val(preset['a5'])
-        self.slider_a6.set_val(preset['a6'])
+        # Set the parameters by iterating through the preset dictionary
+        for param_name, value in preset.items():
+            # Construct the slider attribute name, e.g., 'slider_a3' from key 'a3'
+            slider_attr_name = f"slider_{param_name}"
+            # Safely get the slider attribute; returns None if it doesn't exist
+            slider = getattr(self, slider_attr_name, None)
+            if slider:  # This checks if the slider exists and is not None
+                slider.set_val(value)
 
         # Set c and calculate q2
-        self.slider_c.set_val(preset['c'])
         q2_val = preset['c'] - 1.0 - 1.5 * preset['a4']
-        self.slider_q2.set_val(q2_val)
+        if self.slider_q2:
+            self.slider_q2.set_val(q2_val)
 
         self.updating = False
         self.update_plot(None)
