@@ -10,7 +10,7 @@ import argparse
 import os
 import sys
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Tuple, Dict
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -18,7 +18,7 @@ import numpy as np
 from matplotlib.widgets import Button, Slider
 from scipy.integrate import simpson
 
-from BetaDeformationCalculator import BetaDeformationCalculator
+from BetaDeformationCalculator import BetaDeformationCalculator, FitResult
 from CylindricalToSphericalConverter import CylindricalToSphericalConverter
 
 matplotlib.use('TkAgg')
@@ -953,8 +953,8 @@ class FoSShapePlotter:
 
                 # Calculate beta parameters using the RMSE fitting method
                 try:
-                    fitting_results = spherical_to_beta_converter.fit_beta_parameters_rmse(l_max=l_max_value)
-                    beta_parameters_fitted = fitting_results['beta_fitted']
+                    fitting_results: FitResult = spherical_to_beta_converter.fit_beta_parameters_rmse(l_max=l_max_value)
+                    beta_parameters_fitted: Dict[int, float] = fitting_results['beta_fitted']
                     scaling_factor_fitted = fitting_results['scaling_factor_fitted']
                     scaling_factor_volume = fitting_results['scaling_factor_volume']
                     rmse_fitting = fitting_results['rmse']

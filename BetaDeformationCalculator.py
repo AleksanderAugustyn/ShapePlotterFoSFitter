@@ -3,12 +3,19 @@ Beta Deformation Parameter Calculator
 Calculates nuclear deformation parameters β_λ using spherical harmonic decomposition
 """
 
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, TypedDict
 
 import numpy as np
 from scipy.integrate import simpson
 from scipy.special import sph_harm_y
 
+class FitResult(TypedDict):
+    """Type definition for fit_beta_parameters_rmse return value."""
+    beta_fitted: Dict[int, float]
+    scaling_factor_fitted: float
+    scaling_factor_volume: float
+    rmse: float
+    beta_analytical: Dict[int, float]
 
 class BetaDeformationCalculator:
     """
@@ -258,7 +265,7 @@ class BetaDeformationCalculator:
 
         return scaling_factor * radius
 
-    def fit_beta_parameters_rmse(self, l_max: int = 12) -> Dict[str, float | Dict[int, float]]:
+    def fit_beta_parameters_rmse(self, l_max: int = 12) -> FitResult:
         """
         Fit β_λ0 deformation parameters by minimizing RMSE.
 
