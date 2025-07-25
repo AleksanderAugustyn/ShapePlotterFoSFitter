@@ -441,6 +441,7 @@ class FoSShapePlotter:
         self.reset_button = None
         self.save_button = None
         self.save_coordinates_to_files_button = None
+        self.print_beta_button = None
         self.preset_buttons = []
 
         # Decrement/Increment buttons for sliders
@@ -596,6 +597,9 @@ class FoSShapePlotter:
         ax_save_spherical = plt.axes((0.82, 0.27, 0.08, 0.032))
         self.save_coordinates_to_files_button = Button(ax=ax_save_spherical, label='Save Spherical Fit Coords')
 
+        ax_print_beta = plt.axes((0.82, 0.22, 0.08, 0.032))
+        self.print_beta_button = Button(ax=ax_print_beta, label='Print All Beta Params')
+
         # Create preset buttons
         preset_labels = ['Sphere', 'Prolate', 'Oblate', 'Pear-shaped', 'Two-center', 'Scission']
         for i, label in enumerate(preset_labels):
@@ -652,6 +656,7 @@ class FoSShapePlotter:
         self.reset_button.on_clicked(self.reset_values)
         self.save_button.on_clicked(self.save_plot)
         self.save_coordinates_to_files_button.on_clicked(self.save_coordinates_to_files)
+        self.print_beta_button.on_clicked(self.print_all_beta_parameters)
 
         # Connect preset buttons
         for i, btn in enumerate(self.preset_buttons):
@@ -849,6 +854,105 @@ class FoSShapePlotter:
         except Exception as e:
             print(f"Error saving spherical coordinates: {e}")
 
+    def print_all_beta_parameters(self, _):
+        """Print all analytical and fitted beta parameters (including ones below 0.00095)."""
+        try:
+            # Get current parameters
+            current_params = FoSParameters(
+                protons=int(self.slider_z.val),
+                neutrons=int(self.slider_n.val),
+                c_elongation=self.slider_c.val,
+                q2=self.slider_q2.val,
+                a3=self.slider_a3.val,
+                a4=self.slider_a4.val,
+                a5=self.slider_a5.val,
+                a6=self.slider_a6.val
+            )
+
+            # Calculate shape
+            calculator_fos = FoSShapeCalculator(current_params)
+            current_number_of_points = int(self.slider_number_of_points.val)
+            z_fos_cylindrical, rho_fos_cylindrical = calculator_fos.calculate_shape(n_points=current_number_of_points)
+
+            # Prepare for conversion
+            z_work = z_fos_cylindrical.copy()
+            cumulative_shift = 0.0
+            is_converted = False
+
+            # Check if the shape can be unambiguously converted
+            cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos_cylindrical)
+            is_convertible = cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=current_number_of_points, tolerance=1e-9)
+
+            # If not convertible, try shifting
+            if not is_convertible:
+                z_step = 0.1  # fm
+                shift_direction = -1.0 if current_params.z_sh >= 0 else 1.0
+                z_length = np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)
+                max_shift = z_length / 2.0
+
+                while abs(cumulative_shift) < max_shift:
+                    cumulative_shift += shift_direction * z_step
+                    z_work = z_fos_cylindrical + cumulative_shift
+
+                    cylindrical_to_spherical_converter = CylindricalToSphericalConverter(z_points=z_work, rho_points=rho_fos_cylindrical)
+                    if cylindrical_to_spherical_converter.is_unambiguously_convertible(n_points=current_number_of_points, tolerance=1e-9):
+                        is_convertible = True
+                        is_converted = True
+                        break
+
+            if not is_convertible:
+                print("Error: Shape cannot be converted to spherical coordinates")
+                return
+
+            # Convert to spherical coordinates
+            theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=current_number_of_points)
+
+            # Calculate beta parameters using an analytical method
+            spherical_to_beta_converter = BetaDeformationCalculator(theta=theta_fos, radius=radius_fos, number_of_nucleons=current_params.nucleons)
+            l_max_value = int(self.slider_max_beta.val)
+            beta_parameters = spherical_to_beta_converter.calculate_beta_parameters(l_max=l_max_value)
+
+            # Calculate beta parameters using the RMSE fitting method
+            try:
+                fitting_results: FitResult = spherical_to_beta_converter.fit_beta_parameters_rmse(l_max=l_max_value)
+                beta_parameters_fitted: Dict[int, float] = fitting_results['beta_fitted']
+                scaling_factor_fitted = fitting_results['scaling_factor_fitted']
+                rmse_fitting = fitting_results['rmse']
+            except Exception as fit_error:
+                print(f"Beta fitting error: {fit_error}")
+                # Use analytical parameters as fallback
+                beta_parameters_fitted = beta_parameters.copy()
+                scaling_factor_fitted = 1.0
+                rmse_fitting = -1.0  # Indicate fitting failed
+
+            # Print header
+            print(f"\n{'='*80}")
+            print(f"ALL BETA PARAMETERS FOR Z={int(self.slider_z.val)}, N={int(self.slider_n.val)}")
+            print(f"Parameters: c={self.slider_c.val:.3f}, q2={self.slider_q2.val:.3f}, a3={self.slider_a3.val:.3f}")
+            print(f"           a4={self.slider_a4.val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}")
+            print(f"Max Beta Used: {l_max_value}")
+            print(f"{'='*80}")
+
+            # Print analytical beta parameters in a single row format
+            print(f"\nANALYTICAL METHOD:")
+            analytical_params = [f"β_{l}" for l in sorted(beta_parameters.keys())]
+            analytical_values = [f"{beta_parameters[l]:+.3f}" for l in sorted(beta_parameters.keys())]
+            print(f"Parameters: {', '.join(analytical_params)}")
+            print(f"Values:     {', '.join(analytical_values)}")
+
+            # Print fitted beta parameters in a single row format
+            print(f"\nFITTED METHOD (RMSE minimization):")
+            print(f"Scaling Factor: {scaling_factor_fitted:.6f}, RMSE: {rmse_fitting:.6f} fm")
+            fitted_params = [f"β_{l}" for l in sorted(beta_parameters_fitted.keys())]
+            fitted_values = [f"{beta_parameters_fitted[l]:+.3f}" for l in sorted(beta_parameters_fitted.keys())]
+            print(f"Parameters: {', '.join(fitted_params)}")
+            print(f"Values:     {', '.join(fitted_values)}")
+
+            print(f"\n{'='*80}")
+
+        except Exception as e:
+            print(f"Error printing beta parameters: {e}")
+
     def update_plot(self, _):
         """Update the plot with new parameters."""
         # Get current parameters
@@ -1007,10 +1111,10 @@ class FoSShapePlotter:
                 rmse_beta_fit = np.sqrt(np.mean((radius_beta - radius_fos) ** 2))
 
                 # Get significant beta parameters (analytical)
-                beta_strings_analytical = [f"β_{l:<2} = {val:+.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) > 0.001]
+                beta_strings_analytical = [f"β_{l:<2} = {val:+.4f}" for l, val in sorted(beta_parameters.items()) if abs(val) >= 0.00095]
 
                 # Get significant beta parameters (fitted)
-                beta_strings_fitted = [f"β_{l:<2} = {val:+.4f}" for l, val in sorted(beta_parameters_fitted.items()) if abs(val) > 0.001]
+                beta_strings_fitted = [f"β_{l:<2} = {val:+.4f}" for l, val in sorted(beta_parameters_fitted.items()) if abs(val) >= 0.00095]
 
                 # Format analytical parameters
                 if not beta_strings_analytical:
