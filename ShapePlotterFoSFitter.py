@@ -742,8 +742,17 @@ class FoSShapePlotter:
 
     def save_plot(self, _):
         """Save the current plot to a file."""
-        params = [self.slider_c.val, self.slider_q2.val, self.slider_a3.val,
-                  self.slider_a4.val, self.slider_a5.val, self.slider_a6.val]
+        params = [
+            float(self.slider_c.val),
+            float(self.slider_q2.val),
+            float(self.slider_a3.val),
+            float(self.slider_a4.val),
+            float(self.slider_a5.val),
+            float(self.slider_a6.val),
+            float(self.slider_number_of_points.val),
+            float(self.slider_max_beta.val)
+        ]
+
         filename = f"fos_shape_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + \
                    f"{'_'.join(f'{p:.3f}' for p in params)}.png"
         self.fig.savefig(filename, dpi=300, bbox_inches='tight')
