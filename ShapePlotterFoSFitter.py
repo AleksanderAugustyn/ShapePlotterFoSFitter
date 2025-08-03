@@ -1056,11 +1056,11 @@ class FoSShapePlotter:
             if is_convertible:
 
                 theta_fos, radius_fos = cylindrical_to_spherical_converter.convert_to_spherical(n_theta=current_number_of_points)
-                z_fos_spherical, rho_fos_spherical = cylindrical_to_spherical_converter.convert_to_cartesian(n_theta=current_number_of_points)
+                z_fos_spherical, rho_fos_spherical = cylindrical_to_spherical_converter.convert_to_cylindrical(n_theta=current_number_of_points)
 
                 # Validate the conversion
-                validation = cylindrical_to_spherical_converter.validate_conversion(n_samples=current_number_of_points)
-                conversion_root_mean_squared_error = validation['root_mean_squared_error']
+                validation = cylindrical_to_spherical_converter.validate_conversion(theta_converted=theta_fos, r_converted=radius_fos)
+                conversion_root_mean_squared_error = validation['rmse_combined']
 
                 # Update spherical FoS shape lines (shift back for plotting if needed)
                 if abs(cumulative_shift) > 1e-10:

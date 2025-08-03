@@ -9,6 +9,7 @@ import numpy as np
 from scipy.integrate import simpson
 from scipy.special import sph_harm_y
 
+
 class FitResult(TypedDict):
     """Type definition for fit_beta_parameters_rmse return value."""
     beta_fitted: Dict[int, float]
@@ -173,8 +174,8 @@ class BetaDeformationCalculator:
             Volume of the shape
         """
         # Volume integral in spherical coordinates
-        integrand = radius ** 3 * np.sin(theta)
-        volume: float = float(simpson(integrand, x=theta) * 2 / 3 * np.pi)
+        integrand = radius ** 3 * np.sin(theta) * 2 / 3 * np.pi
+        volume: float = float(simpson(integrand, x=theta))
 
         return volume
 
