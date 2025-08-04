@@ -169,17 +169,14 @@ class FoSShapeCalculator:
         if len(z) < 2 or len(rho) < 2:
             return 0.0
 
-        # Calculate the derivative dρ/d_z using finite differences
-        d_z = np.diff(z)
-        d_rho = np.diff(rho)
-
-        d_rho_dz = d_rho / d_z
+        # Calculate the derivative dr/dθ using numpy gradient
+        d_rho_dz = np.gradient(rho, z)
 
         # Calculate the integrand
-        integrand = 2 * np.pi * rho[:-1] * np.sqrt(1 + d_rho_dz ** 2)
+        integrand = 2 * np.pi * rho * np.sqrt(1 + d_rho_dz ** 2)
 
         # Use simpson rule to calculate the integral
-        surface_area: float = float(simpson(integrand, x=z[:-1]))
+        surface_area: float = float(simpson(integrand, x=z))
 
         return surface_area
 
@@ -197,7 +194,7 @@ class FoSShapeCalculator:
             volume: calculated volume of the shape in fm³
         """
         # Use the simpson rule to calculate the integral
-        volume: float = float(simpson(np.pi * rho[:-1] ** 2, x=z[:-1]))
+        volume: float = float(simpson(np.pi * rho ** 2, x=z))
 
         return volume
 

@@ -145,17 +145,14 @@ class BetaDeformationCalculator:
         Returns:
             Surface area of the shape
         """
-        # Calculate the derivative dr/dθ using finite differences
-        d_r = np.diff(radius)
-        d_theta = np.diff(theta)
-
-        dr_dtheta = d_r / d_theta
+        # Calculate the derivative dr/dθ using numpy gradient
+        dr_dtheta = np.gradient(radius, theta)
 
         # Calculate the integrand
-        integrand = 2 * np.pi * radius[:-1] * np.sin(theta[:-1]) * np.sqrt(radius[:-1] ** 2 + dr_dtheta ** 2)
+        integrand = 2 * np.pi * radius * np.sin(theta) * np.sqrt(radius ** 2 + dr_dtheta ** 2)
 
         # Integrate using Simpson's rule
-        surface_area: float = float(simpson(integrand, x=theta[:-1]))
+        surface_area: float = float(simpson(integrand, x=theta))
 
         return surface_area
 
