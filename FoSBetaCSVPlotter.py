@@ -26,12 +26,12 @@ def extract_parameters_from_filename(filename: str) -> Tuple[int, int, int, int]
     Extract Z, N, points, and maxbeta from the filename.
 
     Args:
-        filename: CSV filename like 'beta_parameters_fitted_Z92_N144_points720_maxbeta20.csv'
+        filename: CSV filename like 'mintrap_energies_Z92_N144_points720_maxbeta20.csv'
 
     Returns:
         Tuple of (Z, N, points, maxbeta)
     """
-    pattern = r'beta_parameters_fitted_Z(\d+)_N(\d+)_points(\d+)_maxbeta(\d+)\.csv'
+    pattern = r'mintrap_energies_Z(\d+)_N(\d+)_points(\d+)_maxbeta(\d+)\.csv'
     match = re.match(pattern, os.path.basename(filename))
 
     if not match:
@@ -132,6 +132,14 @@ def plot_single_shape(args):
         rmse_analytical = row_data['rmse_analytical']
         rmse_fitted = row_data['rmse_fitted']
 
+        # Extract energy values
+        mass_excess = row_data['mass_excess']
+        e_total = row_data['E_total']
+        e_macro = row_data['E_macro']
+        e_micro = row_data['E_micro']
+        e_surf = row_data['E_surf']
+        e_coulomb = row_data['E_coulomb']
+
         # Create a figure
         fig, ax = plt.subplots(1, 1, figsize=(12, 10))
 
@@ -156,7 +164,7 @@ def plot_single_shape(args):
         # Set labels and title
         ax.set_xlabel('z (fm)', fontsize=12)
         ax.set_ylabel('ρ (fm)', fontsize=12)
-        ax.set_title(f'Nuclear Shape (Z={z}, N={n}, A={z + n}) - Converged Shape #{row_index + 1}', fontsize=14)
+        ax.set_title(f'Nuclear Shape (Z={z}, N={n}, A={z + n}) - Shape #{row_index + 1}', fontsize=14)
 
         # Set plot limits
         max_val = max(np.max(np.abs(z_fos_shifted)), np.max(np.abs(rho_fos))) * 1.2
@@ -198,13 +206,20 @@ def plot_single_shape(args):
             f"\nVolume Information:\n"
             f"Reference sphere: {sphere_volume:.2f} fm³\n"
             f"FoS shape: {fos_volume:.2f} fm³\n"
-            f"Beta shape: {beta_volume:.2f} fm³\n"
+            f"Beta shape: {beta_volume:.2f} fm³\n" 
             f"Volume fixing factor: {volume_fixing_factor:.6f}\n"
             f"Radius fixing factor: {radius_fixing_factor:.6f}\n"
             f"\nSurface Area:\n"
             f"Reference sphere: {4 * np.pi * fos_params.radius0 ** 2:.2f} fm²\n"
             f"FoS shape: {fos_surface_area:.2f} fm²\n"
-            f"Beta shape: {beta_surface_area:.2f} fm²"
+            f"Beta shape: {beta_surface_area:.2f} fm²\n"
+            f"\nEnergy Components:\n"
+            f"Mass excess: {mass_excess:.3f} MeV\n"
+            f"E_total: {e_total:.3f} MeV\n"
+            f"E_macro: {e_macro:.3f} MeV\n"
+            f"E_micro: {e_micro:.3f} MeV\n"
+            f"E_surface: {e_surf:.3f} MeV\n"
+            f"E_coulomb: {e_coulomb:.3f} MeV"
         )
 
         # Add text box
@@ -215,7 +230,7 @@ def plot_single_shape(args):
         # Save figure
         output_directory = "results/FitShapePlots"
         os.makedirs(output_directory, exist_ok=True)
-        output_path = os.path.join(output_directory, f"{base_filename}_shape{row_index + 1:05d}.png")
+        output_path = os.path.join(output_directory, f"{base_filename}_shape{row_index + 1:05d}_q2{q2:.3f}_a3{a3:.3f}_a4{a4:.3f}_a5{a5:.3f}_a6{a6:.3f}.png")
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close(fig)
 
@@ -240,7 +255,7 @@ def plot_single_shape(args):
 
 def process_csv_file(csv_filename: str, num_processes: int = None, batch_size: int = 1000):
     """
-    Process CSV file and create plots for all converged shapes using parallel processing.
+    Process CSV file and create plots for all shapes using parallel processing.
 
     Args:
         csv_filename: Path to CSV file
@@ -262,14 +277,12 @@ def process_csv_file(csv_filename: str, num_processes: int = None, batch_size: i
         print(f"Error reading CSV file: {e}")
         return
 
-    # Filter for converged shapes
-    converged_df = df[df['converged'] == 1]
-
-    if len(converged_df) == 0:
-        print("No converged shapes found in the CSV file.")
+    # Process all shapes (no longer filtering by converged column)
+    if len(df) == 0:
+        print("No shapes found in the CSV file.")
         return
 
-    print(f"Found {len(converged_df)} converged shapes.")
+    print(f"Found {len(df)} shapes.")
     print(f"Nuclear parameters: Z={z}, N={n}, A={z + n}")
 
     # Create output filename base
@@ -290,8 +303,8 @@ def process_csv_file(csv_filename: str, num_processes: int = None, batch_size: i
 
     # Prepare arguments for parallel processing
     args_list = []
-    for idx, (_, row) in enumerate(converged_df.iterrows()):
-        args_list.append((idx, row, z, n, base_filename, len(converged_df), counter_dict))
+    for idx, (_, row) in enumerate(df.iterrows()):
+        args_list.append((idx, row, z, n, base_filename, len(df), counter_dict))
 
     # Process in batches to avoid memory issues
     total_batches = (len(args_list) + batch_size - 1) // batch_size
@@ -318,12 +331,12 @@ def process_csv_file(csv_filename: str, num_processes: int = None, batch_size: i
 
     # Final statistics
     elapsed_time = time.time() - start_time
-    success_count = len(converged_df) - error_count
+    success_count = len(df) - error_count
 
     print(f"\nProcessing complete!")
     print(f"Total time: {elapsed_time / 60:.1f} minutes")
-    print(f"Average rate: {len(converged_df) / elapsed_time:.1f} shapes/second")
-    print(f"Successfully processed: {success_count}/{len(converged_df)} shapes")
+    print(f"Average rate: {len(df) / elapsed_time:.1f} shapes/second")
+    print(f"Successfully processed: {success_count}/{len(df)} shapes")
     if error_count > 0:
         print(f"Errors encountered: {error_count}")
 
