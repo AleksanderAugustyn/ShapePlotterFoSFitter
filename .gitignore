@@ -10,3 +10,4 @@ gen
 *.png
 CLAUDE.md
 *.dat
+*csv
