@@ -34,7 +34,7 @@ class FoSParameters:
     a4: float = 0.0  # neck parameter
     a5: float = 0.0  # higher order parameter
     a6: float = 0.0  # higher order parameter
-    q2: float = 0.0  # entangled parameter: c = q2 + 1.0 + 1.5 * a4
+    q2: float = 0.0  # entangled parameter: q2 = c - 1.0 - 1.5 * a4
     r0_constant: float = 1.16  # Radius constant in fm
     max_beta: int = 12  # Maximum number of beta parameters used for fitting
 
@@ -65,7 +65,7 @@ class FoSParameters:
 
     @property
     def sphere_volume(self) -> float:
-        """Volume of a sphere with the same nucleon number."""
+        """Volume of a sphere with the same number of nucleons."""
         return (4 / 3) * np.pi * self.radius0 ** 3
 
     @property
@@ -226,14 +226,14 @@ class FoSShapeCalculator:
         return numerator / denominator
 
 
-def calculate_and_save_shape(z, n, q2, a3, a4, a5, a6, number_of_points, output_dir="."):
+def calculate_and_save_shape(z, n, c_elongation, a3, a4, a5, a6, number_of_points, output_dir="."):
     """
     Calculate nuclear shape and save coordinates to files.
 
     Args:
         z: Number of protons
         n: Number of neutrons
-        q2: Entangled parameter
+        c_elongation: Elongation parameter
         a3: Reflection asymmetry parameter
         a4: Neck parameter
         a5: Higher order parameter
@@ -245,14 +245,14 @@ def calculate_and_save_shape(z, n, q2, a3, a4, a5, a6, number_of_points, output_
         bool: True if successful, False otherwise
     """
     try:
-        # Calculate c from q2 and a4
-        c = q2 + 1.0 + 1.5 * a4
+        # Calculate q2 from c_elongation and a4
+        q2 = c_elongation - 1.0 - 1.5 * a4
 
         # Create parameters
         current_params = FoSParameters(
             protons=z,
             neutrons=n,
-            c_elongation=c,
+            c_elongation=c_elongation,
             q2=q2,
             a3=a3,
             a4=a4,
@@ -301,7 +301,7 @@ def calculate_and_save_shape(z, n, q2, a3, a4, a5, a6, number_of_points, output_
         phi_values = np.linspace(0, 2 * np.pi, 360)
 
         # Create filename
-        params = [c, q2, a3, a4, a5, a6]
+        params = [c_elongation, q2, a3, a4, a5, a6]
         filename_spherical = os.path.join(output_dir, f"spherical_coords_{z}_{n}_" + f"{'_'.join(f'{p:.3f}' for p in params)}.dat")
         filename_cartesian = os.path.join(output_dir, f"cartesian_coords_{z}_{n}_" + f"{'_'.join(f'{p:.3f}' for p in params)}.dat")
 
@@ -310,7 +310,7 @@ def calculate_and_save_shape(z, n, q2, a3, a4, a5, a6, number_of_points, output_
             # Write header for spherical coordinates
             f.write("# Spherical coordinates: r theta(radians) Phi (radians)\n")
             f.write(f"# Z={z}, N={n}\n")
-            f.write(f"# Parameters: c={c:.3f}, q2={q2:.3f}, a3={a3:.3f}, a4={a4:.3f}, a5={a5:.3f}, a6={a6:.3f}\n")
+            f.write(f"# Parameters: c={c_elongation:.3f}, q2={q2:.3f}, a3={a3:.3f}, a4={a4:.3f}, a5={a5:.3f}, a6={a6:.3f}\n")
             if is_converted:
                 f.write(f"# Shape was shifted by {cumulative_shift:.3f} fm for conversion\n")
             f.write(f"# Total points: {len(theta_fos) * len(phi_values)}\n")
@@ -324,7 +324,7 @@ def calculate_and_save_shape(z, n, q2, a3, a4, a5, a6, number_of_points, output_
             # Write header for Cartesian coordinates
             f_cartesian.write("# Cartesian coordinates: x y z\n")
             f_cartesian.write(f"# Z={z}, N={n}\n")
-            f_cartesian.write(f"# Parameters: c={c:.3f}, q2={q2:.3f}, a3={a3:.3f}, a4={a4:.3f}, a5={a5:.3f}, a6={a6:.3f}\n")
+            f_cartesian.write(f"# Parameters: c={c_elongation:.3f}, q2={q2:.3f}, a3={a3:.3f}, a4={a4:.3f}, a5={a5:.3f}, a6={a6:.3f}\n")
             if is_converted:
                 f_cartesian.write(f"# Shape was shifted by {cumulative_shift:.3f} fm for conversion\n")
             f_cartesian.write(f"# Total points: {len(theta_fos) * len(phi_values)}\n")
@@ -355,7 +355,7 @@ def create_parser():
 
     parser.add_argument('Z', type=int, nargs='?', help='Number of protons')
     parser.add_argument('N', type=int, nargs='?', help='Number of neutrons')
-    parser.add_argument('q2', type=float, nargs='?', help='Entangled parameter q2')
+    parser.add_argument('c_elongation', type=float, nargs='?', help='Elongation parameter c')
     parser.add_argument('a3', type=float, nargs='?', help='Reflection asymmetry parameter')
     parser.add_argument('a4', type=float, nargs='?', help='Neck parameter')
     parser.add_argument('a5', type=float, nargs='?', help='Higher order parameter')
@@ -367,7 +367,7 @@ def create_parser():
     return parser
 
 
-def validate_parameters(z, n, q2, a3, a4, a5, a6, number_of_points):
+def validate_parameters(z, n, c_elongation, a3, a4, a5, a6, number_of_points):
     """Validate input parameters."""
     errors = []
 
@@ -376,7 +376,10 @@ def validate_parameters(z, n, q2, a3, a4, a5, a6, number_of_points):
     if n <= 0:
         errors.append("N must be positive")
 
-    for param_name, param_value in [('q2', q2), ('a3', a3), ('a4', a4), ('a5', a5), ('a6', a6)]:
+    if not (0.5 <= c_elongation <= 3.0):
+        errors.append("c_elongation must be between 0.5 and 3.0")
+
+    for param_name, param_value in [('a3', a3), ('a4', a4), ('a5', a5), ('a6', a6)]:
         if abs(param_value) >= 2:
             errors.append(f"{param_name} must have absolute value less than 2")
 
@@ -394,14 +397,11 @@ class FoSShapePlotter:
         # Default shape parameters
         self.initial_z: int = 92  # Uranium
         self.initial_n: int = 144
-        self.initial_q2: float = 0.0
+        self.initial_c: float = 1.0
         self.initial_a3: float = 0.0
         self.initial_a4: float = 0.0
         self.initial_a5: float = 0.0
         self.initial_a6: float = 0.0
-
-        # Calculate initial c from q2 and a4
-        self.initial_c: float = self.initial_q2 + 1.0 + 1.5 * self.initial_a4
 
         # UI elements
         self.fig = None
@@ -429,7 +429,6 @@ class FoSShapePlotter:
         self.slider_z = None
         self.slider_n = None
         self.slider_c = None
-        self.slider_q2 = None
         self.slider_a3 = None
         self.slider_a4 = None
         self.slider_a5 = None
@@ -450,12 +449,15 @@ class FoSShapePlotter:
         # Flag to prevent infinite update loops
         self.updating = False
 
+        # Calculate initial q2
+        initial_q2 = self.initial_c - 1.0 - 1.5 * self.initial_a4
+
         # Initialize parameters
         self.nuclear_params = FoSParameters(
             protons=self.initial_z,
             neutrons=self.initial_n,
             c_elongation=self.initial_c,
-            q2=self.initial_q2,
+            q2=initial_q2,
             a3=self.initial_a3,
             a4=self.initial_a4,
             a5=self.initial_a5,
@@ -568,16 +570,15 @@ class FoSShapePlotter:
         self.slider_z, _, _ = self.create_slider_with_buttons('z', first_slider_y, 'Z', 82, 120, self.initial_z, 1)
         self.slider_n, _, _ = self.create_slider_with_buttons('n', first_slider_y + slider_spacing, 'N', 120, 180, self.initial_n, 1)
         self.slider_c, _, _ = self.create_slider_with_buttons('c', first_slider_y + 2 * slider_spacing, 'c', 0.5, 3.0, self.initial_c, 0.01)
-        self.slider_q2, _, _ = self.create_slider_with_buttons('q2', first_slider_y + 3 * slider_spacing, 'q₂', -0.5, 1.0, self.initial_q2, 0.01)
-        self.slider_a3, _, _ = self.create_slider_with_buttons('a3', first_slider_y + 4 * slider_spacing, 'a₃', -0.6, 0.6, self.initial_a3, 0.01)
-        self.slider_a4, _, _ = self.create_slider_with_buttons('a4', first_slider_y + 5 * slider_spacing, 'a₄', -0.75, 0.75, self.initial_a4, 0.01)
-        self.slider_a5, _, _ = self.create_slider_with_buttons('a5', first_slider_y + 6 * slider_spacing, 'a₅', -0.5, 0.5, self.initial_a5, 0.01)
-        self.slider_a6, _, _ = self.create_slider_with_buttons('a6', first_slider_y + 7 * slider_spacing, 'a₆', -0.5, 0.5, self.initial_a6, 0.01)
-        self.slider_max_beta, _, _ = self.create_slider_with_buttons('max_beta', first_slider_y + 8 * slider_spacing, 'Max Betas Used For Fit', 1.0, 36.0, 12.0, 1.0)
-        self.slider_number_of_points, _, _ = self.create_slider_with_buttons('number_of_points', first_slider_y + 9 * slider_spacing, 'Number of Points', 180, 3600, 720, 180)
+        self.slider_a3, _, _ = self.create_slider_with_buttons('a3', first_slider_y + 3 * slider_spacing, 'a₃', -0.6, 0.6, self.initial_a3, 0.01)
+        self.slider_a4, _, _ = self.create_slider_with_buttons('a4', first_slider_y + 4 * slider_spacing, 'a₄', -0.75, 0.75, self.initial_a4, 0.01)
+        self.slider_a5, _, _ = self.create_slider_with_buttons('a5', first_slider_y + 5 * slider_spacing, 'a₅', -0.5, 0.5, self.initial_a5, 0.01)
+        self.slider_a6, _, _ = self.create_slider_with_buttons('a6', first_slider_y + 6 * slider_spacing, 'a₆', -0.5, 0.5, self.initial_a6, 0.01)
+        self.slider_max_beta, _, _ = self.create_slider_with_buttons('max_beta', first_slider_y + 7 * slider_spacing, 'Max Betas Used For Fit', 1.0, 36.0, 12.0, 1.0)
+        self.slider_number_of_points, _, _ = self.create_slider_with_buttons('number_of_points', first_slider_y + 8 * slider_spacing, 'Number of Points', 180, 3600, 720, 180)
 
         # Style font sizes for all sliders
-        for slider in [self.slider_z, self.slider_n, self.slider_c, self.slider_q2,
+        for slider in [self.slider_z, self.slider_n, self.slider_c,
                        self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6, self.slider_max_beta, self.slider_number_of_points]:
             slider.label.set_fontsize(14)
             slider.valtext.set_fontsize(14)
@@ -630,11 +631,6 @@ class FoSShapePlotter:
             if slider:  # This checks if the slider exists and is not None
                 slider.set_val(value)
 
-        # Set c and calculate q2
-        q2_val = preset['c'] - 1.0 - 1.5 * preset['a4']
-        if self.slider_q2:
-            self.slider_q2.set_val(q2_val)
-
         self.updating = False
         self.update_plot(None)
 
@@ -644,7 +640,6 @@ class FoSShapePlotter:
         self.slider_z.on_changed(self.update_plot)
         self.slider_n.on_changed(self.update_plot)
         self.slider_c.on_changed(self.on_c_changed)
-        self.slider_q2.on_changed(self.on_q2_changed)
         self.slider_a3.on_changed(self.update_plot)
         self.slider_a4.on_changed(self.on_a4_changed)
         self.slider_a5.on_changed(self.update_plot)
@@ -695,41 +690,20 @@ class FoSShapePlotter:
             inc_button.on_clicked(create_increment_handler(slider))
 
     def on_c_changed(self, val):
-        """Handle changes to c slider - update q2."""
+        """Handle changes to c slider."""
         if not self.updating:
-            self.updating = True
-            # q2 = c - 1.0 - 1.5 * a4
-            q2_val = val - 1.0 - 1.5 * self.slider_a4.val
-            self.slider_q2.set_val(q2_val)
-            self.updating = False
-        self.update_plot(val)
-
-    def on_q2_changed(self, val):
-        """Handle changes to q2 slider - update c."""
-        if not self.updating:
-            self.updating = True
-            # c = q2 + 1.0 + 1.5 * a4
-            c_val = val + 1.0 + 1.5 * self.slider_a4.val
-            self.slider_c.set_val(c_val)
-            self.updating = False
-        self.update_plot(val)
+            self.update_plot(val)
 
     def on_a4_changed(self, val):
-        """Handle changes to a4 slider - update c based on q2."""
+        """Handle changes to a4 slider."""
         if not self.updating:
-            self.updating = True
-            # c = q2 + 1.0 + 1.5 * a4
-            c_val = self.slider_q2.val + 1.0 + 1.5 * val
-            self.slider_c.set_val(c_val)
-            self.updating = False
-        self.update_plot(val)
+            self.update_plot(val)
 
     def reset_values(self, _):
         """Reset all sliders to their initial values."""
         self.updating = True
         self.slider_z.set_val(self.initial_z)
         self.slider_n.set_val(self.initial_n)
-        self.slider_q2.set_val(self.initial_q2)
         self.slider_a3.set_val(self.initial_a3)
         self.slider_a4.set_val(self.initial_a4)
         self.slider_a5.set_val(self.initial_a5)
@@ -742,11 +716,15 @@ class FoSShapePlotter:
 
     def save_plot(self, _):
         """Save the current plot to a file."""
+        c_val = float(self.slider_c.val)
+        a4_val = float(self.slider_a4.val)
+        q2_val = c_val - 1.0 - 1.5 * a4_val
+
         params = [
-            float(self.slider_c.val),
-            float(self.slider_q2.val),
+            c_val,
+            q2_val,
             float(self.slider_a3.val),
-            float(self.slider_a4.val),
+            a4_val,
             float(self.slider_a5.val),
             float(self.slider_a6.val),
             float(self.slider_number_of_points.val),
@@ -764,13 +742,17 @@ class FoSShapePlotter:
         """
         try:
             # Get current parameters
+            c_val = self.slider_c.val
+            a4_val = self.slider_a4.val
+            q2_val = c_val - 1.0 - 1.5 * a4_val
+
             current_params = FoSParameters(
                 protons=int(self.slider_z.val),
                 neutrons=int(self.slider_n.val),
-                c_elongation=self.slider_c.val,
-                q2=self.slider_q2.val,
+                c_elongation=c_val,
+                q2=q2_val,
                 a3=self.slider_a3.val,
-                a4=self.slider_a4.val,
+                a4=a4_val,
                 a5=self.slider_a5.val,
                 a6=self.slider_a6.val
             )
@@ -817,8 +799,8 @@ class FoSShapePlotter:
             phi_values = np.linspace(0, 2 * np.pi, 360)
 
             # Create filename
-            params = [self.slider_c.val, self.slider_q2.val, self.slider_a3.val,
-                      self.slider_a4.val, self.slider_a5.val, self.slider_a6.val]
+            params = [c_val, q2_val, self.slider_a3.val,
+                      a4_val, self.slider_a5.val, self.slider_a6.val]
             filename_spherical = f"spherical_coords_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + f"{'_'.join(f'{p:.3f}' for p in params)}.dat"
             filename_cartesian = f"cartesian_coords_{int(self.slider_z.val)}_{int(self.slider_n.val)}_" + f"{'_'.join(f'{p:.3f}' for p in params)}.dat"
 
@@ -827,7 +809,7 @@ class FoSShapePlotter:
                 # Write header for spherical coordinates
                 f.write("# Spherical coordinates: r theta(radians) Phi (radians)\n")
                 f.write(f"# Z={int(self.slider_z.val)}, N={int(self.slider_n.val)}\n")
-                f.write(f"# Parameters: c={self.slider_c.val:.3f}, q2={self.slider_q2.val:.3f}, a3={self.slider_a3.val:.3f}, a4={self.slider_a4.val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}\n")
+                f.write(f"# Parameters: c={c_val:.3f}, q2={q2_val:.3f}, a3={self.slider_a3.val:.3f}, a4={a4_val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}\n")
                 if is_converted:
                     f.write(f"# Shape was shifted by {cumulative_shift:.3f} fm for conversion\n")
                 f.write(f"# Total points: {len(theta_fos) * len(phi_values)}\n")
@@ -841,7 +823,7 @@ class FoSShapePlotter:
                 # Write header for Cartesian coordinates
                 f_cartesian.write("# Cartesian coordinates: x y z\n")
                 f_cartesian.write(f"# Z={int(self.slider_z.val)}, N={int(self.slider_n.val)}\n")
-                f_cartesian.write(f"# Parameters: c={self.slider_c.val:.3f}, q2={self.slider_q2.val:.3f}, a3={self.slider_a3.val:.3f}, a4={self.slider_a4.val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}\n")
+                f_cartesian.write(f"# Parameters: c={c_val:.3f}, q2={q2_val:.3f}, a3={self.slider_a3.val:.3f}, a4={a4_val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}\n")
                 if is_converted:
                     f_cartesian.write(f"# Shape was shifted by {cumulative_shift:.3f} fm for conversion\n")
                 f_cartesian.write(f"# Total points: {len(theta_fos) * len(phi_values)}\n")
@@ -867,13 +849,17 @@ class FoSShapePlotter:
         """Print all analytical and fitted beta parameters (including ones below 0.00095)."""
         try:
             # Get current parameters
+            c_val = self.slider_c.val
+            a4_val = self.slider_a4.val
+            q2_val = c_val - 1.0 - 1.5 * a4_val
+
             current_params = FoSParameters(
                 protons=int(self.slider_z.val),
                 neutrons=int(self.slider_n.val),
-                c_elongation=self.slider_c.val,
-                q2=self.slider_q2.val,
+                c_elongation=c_val,
+                q2=q2_val,
                 a3=self.slider_a3.val,
-                a4=self.slider_a4.val,
+                a4=a4_val,
                 a5=self.slider_a5.val,
                 a6=self.slider_a6.val
             )
@@ -937,8 +923,8 @@ class FoSShapePlotter:
             # Print header
             print(f"\n{'='*80}")
             print(f"ALL BETA PARAMETERS FOR Z={int(self.slider_z.val)}, N={int(self.slider_n.val)}")
-            print(f"Parameters: c={self.slider_c.val:.3f}, q2={self.slider_q2.val:.3f}, a3={self.slider_a3.val:.3f}")
-            print(f"           a4={self.slider_a4.val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}")
+            print(f"Parameters: c={c_val:.3f}, q2={q2_val:.3f}, a3={self.slider_a3.val:.3f}")
+            print(f"           a4={a4_val:.3f}, a5={self.slider_a5.val:.3f}, a6={self.slider_a6.val:.3f}")
             print(f"Max Beta Used: {l_max_value}")
             print(f"{'='*80}")
 
@@ -964,14 +950,19 @@ class FoSShapePlotter:
 
     def update_plot(self, _):
         """Update the plot with new parameters."""
-        # Get current parameters
+        # Get current parameters from sliders
+        c_val = self.slider_c.val
+        a4_val = self.slider_a4.val
+        # Calculate the dependent parameter q2
+        q2_val = c_val - 1.0 - 1.5 * a4_val
+
         current_params = FoSParameters(
             protons=int(self.slider_z.val),
             neutrons=int(self.slider_n.val),
-            c_elongation=self.slider_c.val,
-            q2=self.slider_q2.val,
+            c_elongation=c_val,
+            q2=q2_val,
             a3=self.slider_a3.val,
-            a4=self.slider_a4.val,
+            a4=a4_val,
             a5=self.slider_a5.val,
             a6=self.slider_a6.val
         )
@@ -1187,12 +1178,6 @@ class FoSShapePlotter:
         center_of_mass_beta_fit = BetaDeformationCalculator.calculate_center_of_mass_in_spherical_coordinates(radius=radius_beta, theta=theta_beta)
         self.cm_beta_fit_calculated.set_data([center_of_mass_beta_fit - cumulative_shift], [0])
 
-        # Calculate the ratio of calculated CM to theoretical shift, if NaN, set to 0
-        # cm_ratio = (
-        #     calculator_fos.calculate_center_of_mass(z_fos_cylindrical, rho_fos_cylindrical) / current_params.z_sh
-        #     if current_params.z_sh != 0 else 0.0
-        # )
-
         # Update a reference sphere
         theta_reference_sphere = np.linspace(0, 2 * np.pi, 180)
         sphere_x = current_params.radius0 * np.cos(theta_reference_sphere)
@@ -1211,9 +1196,11 @@ class FoSShapePlotter:
         # Calculate the surface area of the plotted shape
         fos_cylindrical_surface_area = calculator_fos.calculate_surface_area_in_cylindrical_coordinates(z_fos_cylindrical, rho_fos_cylindrical)
 
-        # Calculate dimensions
-        max_z = np.max(np.abs(z_fos_cylindrical))
+        # Calculate dimensions of the FoS shape
+        max_z = np.max(z_fos_cylindrical)
+        min_z = np.min(z_fos_cylindrical)
         max_rho = np.max(rho_fos_cylindrical)
+        min_rho = np.min(rho_fos_cylindrical)
 
         # Calculate neck radius at a4 = 0.72 (scission point)
         if current_params.a4 > 0:
@@ -1228,8 +1215,8 @@ class FoSShapePlotter:
             f"\nParameter Relations:\n"
             f"a₂ (From Volume Conservation)= a₄/3 - a₆/5\n"
             f"a₂ = {current_params.a4:.3f} / 3.0 - {current_params.a6:.3f} / 5.0 = {current_params.a2:.3f}\n"
-            f"c (Elongation) = q₂ + 1.0 + 1.5a₄\n"
-            f"c = {current_params.q2:.3f} + 1.0 + 1.5 × {current_params.a4:.3f} = {current_params.c_elongation:.3f}\n"
+            f"q₂ (Entangled param) = c - 1.0 - 1.5a₄\n"
+            f"q₂ = {current_params.c_elongation:.3f} - 1.0 - 1.5 × {current_params.a4:.3f} = {current_params.q2:.3f}\n"
             f"Aₕ = A/2 * (1.0 + a₃)\n"
             f"Aₕ = {current_params.nucleons:.3f} / 2 * (1.0 + {current_params.a3:.3f}) = {current_params.nucleons / 2.0 * (1.0 + current_params.a3):.3f}\n"
             f"\nShift Information:\n"
@@ -1254,9 +1241,11 @@ class FoSShapePlotter:
             f"Beta Shape Surface Area (Analytical): {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f}% of FoS)\n"
             f"Beta Shape Surface Area (Fitted): {beta_surface_area_fitted:.3f} fm² ({beta_surface_area_fitted / fos_cylindrical_surface_area * 100:.3f}% of FoS)\n"
             f"\nShape Dimensions:\n"
-            f"Max z: {max_z:.2f} fm\n"
-            f"Max ρ: {max_rho:.2f} fm\n"
-            f"Length along z: {abs(np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)):.2f} fm\n"
+            f"Max z: {max_z:.3f} fm\n"
+            f"Min z: {min_z:.3f} fm\n"
+            f"Max ρ: {max_rho:.3f} fm\n"
+            f"Min ρ: {min_rho:.3f} fm\n"
+            f"Length along z: {abs(np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)):.3f} fm\n"
             f"Neck Radius: {neck_radius:.2f} fm\n"
             f"Calculated c (Elongation): {max_z / current_params.radius0:.3f}\n"
             f"\nConversion Information:\n"
@@ -1277,13 +1266,13 @@ class FoSShapePlotter:
 
         # Add new text to the left side of the right text area
         self.ax_text.text(-0.05, 1.0, info_text, transform=self.ax_text.transAxes,
-                          fontsize=10, verticalalignment='top', horizontalalignment='left',
+                          fontsize=8, verticalalignment='top', horizontalalignment='left',
                           bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
         # Add beta parameters text to the right side of the right text area
         beta_text_obj = self.ax_text.text(0.55, 1.0, f"Significant Beta Parameters (>0.001):\n{significant_beta_parameters}",
                                           transform=self.ax_text.transAxes,
-                                          fontsize=10, verticalalignment='top', horizontalalignment='left',
+                                          fontsize=8, verticalalignment='top', horizontalalignment='left',
                                           bbox={'boxstyle': 'round', 'facecolor': 'lightblue', 'alpha': 0.5}, fontfamily='monospace')
         beta_text_obj._beta_text = True  # Mark this as beta text for removal
 
@@ -1310,10 +1299,10 @@ def main():
     args = parser.parse_args()
 
     # Check if all required arguments are provided for batch mode
-    if all(v is not None for v in [args.Z, args.N, args.q2, args.a3,
+    if all(v is not None for v in [args.Z, args.N, args.c_elongation, args.a3,
                                    args.a4, args.a5, args.a6, args.number_of_points]):
         # Batch mode
-        errors = validate_parameters(args.Z, args.N, args.q2, args.a3,
+        errors = validate_parameters(args.Z, args.N, args.c_elongation, args.a3,
                                      args.a4, args.a5, args.a6, args.number_of_points)
 
         if errors:
@@ -1332,7 +1321,7 @@ def main():
 
         # Run calculation
         success = calculate_and_save_shape(
-            args.Z, args.N, args.q2, args.a3, args.a4, args.a5, args.a6,
+            args.Z, args.N, args.c_elongation, args.a3, args.a4, args.a5, args.a6,
             args.number_of_points, args.output_dir
         )
 
@@ -1343,7 +1332,7 @@ def main():
         # Exit successfully (silent)
         sys.exit(0)
 
-    elif any(v is not None for v in [args.Z, args.N, args.q2, args.a3,
+    elif any(v is not None for v in [args.Z, args.N, args.c_elongation, args.a3,
                                      args.a4, args.a5, args.a6, args.number_of_points]):
         # Partial arguments provided - error
         print("Error: All parameters must be provided for batch mode", file=sys.stderr)
