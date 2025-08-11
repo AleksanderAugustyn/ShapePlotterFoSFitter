@@ -274,7 +274,7 @@ def calculate_and_save_shape(z, n, q2, a3, a4, a5, a6, number_of_points, output_
         if not is_convertible:
             z_step = 0.1  # fm
             shift_direction = -1.0 if current_params.z_sh >= 0 else 1.0
-            z_length = np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)
+            z_length: float = float(np.max(z_fos_cylindrical)) - float(np.min(z_fos_cylindrical))
             max_shift = z_length / 2.0
 
             while abs(cumulative_shift) < max_shift:
@@ -805,7 +805,7 @@ class FoSShapePlotter:
             if not is_convertible:
                 z_step = 0.1  # fm
                 shift_direction = -1.0 if current_params.z_sh >= 0 else 1.0
-                z_length = np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)
+                z_length: float = float(np.max(z_fos_cylindrical)) - float(np.min(z_fos_cylindrical))
                 max_shift = z_length / 2.0
 
                 while abs(cumulative_shift) < max_shift:
@@ -908,7 +908,7 @@ class FoSShapePlotter:
             if not is_convertible:
                 z_step = 0.1  # fm
                 shift_direction = -1.0 if current_params.z_sh >= 0 else 1.0
-                z_length = np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)
+                z_length: float = float(np.max(z_fos_cylindrical)) - float(np.min(z_fos_cylindrical))
                 max_shift = z_length / 2.0
 
                 while abs(cumulative_shift) < max_shift:
@@ -1034,7 +1034,7 @@ class FoSShapePlotter:
                 shift_direction = -1.0 if current_params.z_sh >= 0 else 1.0
 
                 # The maximum allowed shift is half the z-dimension length
-                z_length = np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)
+                z_length: float = float(np.max(z_fos_cylindrical)) - float(np.min(z_fos_cylindrical))
                 max_shift = z_length / 2.0
 
                 # Try shifting until convertible or reach the limit
@@ -1224,8 +1224,11 @@ class FoSShapePlotter:
         fos_cylindrical_surface_area = calculator_fos.calculate_surface_area_in_cylindrical_coordinates(z_fos_cylindrical, rho_fos_cylindrical)
 
         # Calculate dimensions
-        max_z = np.max(np.abs(z_fos_cylindrical))
-        max_rho = np.max(rho_fos_cylindrical)
+        max_z: float = np.max(z_fos_cylindrical)
+        min_z: float = np.min(z_fos_cylindrical)
+        max_rho: float = np.max(rho_fos_cylindrical)
+        min_rho: float = np.min(rho_fos_cylindrical)
+        length_along_z_axis: float = float(z_fos_cylindrical[-1] - z_fos_cylindrical[0])
 
         # Calculate neck radius at a4 = 0.72 (scission point)
         if current_params.a4 > 0:
@@ -1266,11 +1269,12 @@ class FoSShapePlotter:
             f"Beta Shape Surface Area (Analytical): {beta_surface_area:.3f} fm² ({beta_surface_area / fos_cylindrical_surface_area * 100:.3f}% of FoS)\n"
             f"Beta Shape Surface Area (Fitted): {beta_surface_area_fitted:.3f} fm² ({beta_surface_area_fitted / fos_cylindrical_surface_area * 100:.3f}% of FoS)\n"
             f"\nShape Dimensions:\n"
-            f"Max z: {max_z:.2f} fm\n"
-            f"Max ρ: {max_rho:.2f} fm\n"
-            f"Length along z: {abs(np.max(z_fos_cylindrical) - np.min(z_fos_cylindrical)):.2f} fm\n"
-            f"Neck Radius: {neck_radius:.2f} fm\n"
-            f"Calculated c (Elongation): {max_z / current_params.radius0:.3f}\n"
+            f"Max z: {max_z:.3f} fm\n"
+            f"Min z: {min_z:.3f} fm\n"
+            f"Max ρ: {max_rho:.3f} fm\n"
+            f"Length along the z axis: {length_along_z_axis:.3f} fm\n"
+            f"Neck Radius: {neck_radius:.3f} fm\n"
+            f"Calculated c (Elongation): {length_along_z_axis / (2 * current_params.radius0):.3f}\n"
             f"\nConversion Information:\n"
             f"Shape is Originally Unambiguously Convertible: {'Yes' if not is_converted else 'No'}\n"
             f"\nFit Information:\n"
@@ -1289,13 +1293,13 @@ class FoSShapePlotter:
 
         # Add new text to the left side of the right text area
         self.ax_text.text(-0.05, 1.0, info_text, transform=self.ax_text.transAxes,
-                          fontsize=10, verticalalignment='top', horizontalalignment='left',
+                          fontsize=8, verticalalignment='top', horizontalalignment='left',
                           bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
         # Add beta parameters text to the right side of the right text area
         beta_text_obj = self.ax_text.text(0.55, 1.0, f"Significant Beta Parameters (>0.001):\n{significant_beta_parameters}",
                                           transform=self.ax_text.transAxes,
-                                          fontsize=10, verticalalignment='top', horizontalalignment='left',
+                                          fontsize=8, verticalalignment='top', horizontalalignment='left',
                                           bbox={'boxstyle': 'round', 'facecolor': 'lightblue', 'alpha': 0.5}, fontfamily='monospace')
         beta_text_obj._beta_text = True  # Mark this as beta text for removal
 
