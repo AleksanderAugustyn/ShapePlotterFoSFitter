@@ -48,21 +48,49 @@ provides insights into the relationship between different nuclear shape parametr
 - **Export Capabilities**: Save plots and parameter sets for further analysis
 - **Interactive Controls**: Fine-tuned adjustment with both sliders and increment/decrement buttons
 
+## Installation
+
+To set up the application on your local machine, it is highly recommended to use a Python virtual environment. This ensures that the project's dependencies are isolated from your system's global Python packages.
+
+1. Install Python 3.9 or later if you haven't already. You can download it from [python.org](https://www.python.org/downloads/).
+   Ensure that you add Python to your system's PATH during installation.
+
+2. **Clone the Repository**
+    ```bash
+    git clone https://github.com/AleksanderAugustyn/ShapePlotterFoSFitter.git
+    ```
+    cd ShapePlotterFoSFitter
+    ```
+
+3. **Create and Activate a Virtual Environment**
+    A virtual environment creates an isolated space for your project's dependencies.
+
+    ```bash
+    # Create the virtual environment (e.g., named "venv")
+    python -m venv venv
+    ```
+
+    Now, activate it:
+    *   **On macOS and Linux:**
+        ```bash
+        source ./venv/bin/activate
+        ```
+    *   **On Windows (Command Prompt):**
+        ```bash
+        .\venv\Scripts\activate
+        ```
+    Your terminal prompt should now be prefixed with `(venv)`.
+
+4. **Install Required Packages**
+    With the virtual environment active, install all the necessary libraries from the `requirements.txt` file with a single command:
+    ```bash
+    pip install -r requirements.txt
+    ```
+    This will install the exact versions of `numpy`, `matplotlib`, `scipy`, and all other necessary packages to ensure the application runs as intended.
+
 ## Running the Application
 
-To run the application, ensure you have Python installed along with the following libraries:
-
-- `numpy`
-- `matplotlib`
-- `scipy` (for optimization and fitting routines)
-
-You can install them using pip:
-
-```bash
-pip install numpy matplotlib scipy
-```
-
-Then, execute the `ShapePlotterFoS.py` script:
+Execute the `ShapePlotterFoS.py` script:
 
 ```bash
 python ShapePlotterFoSFitter.py
