@@ -2,7 +2,7 @@
 
 This project implements an interactive plotter for visualizing nuclear shapes using two complementary parametrizations:
 
-1. **Fourier-over-Spheroid (FoS)** parametrization, as described in Pomorski et al. (2023)
+1. **Fourier-over-Spheroid (FoS)** parametrization, as described in Pomorski et al. (2023), 10.1103/PhysRevC.107.054616
 2. **Beta Spherical Harmonics** parametrization fitting
 
 The application allows users to adjust FoS shape parameters and observe their effects on the nuclear shape in real-time, while simultaneously fitting and displaying the equivalent beta spherical harmonics representation. This dual approach
@@ -54,6 +54,9 @@ To set up the application on your local machine, it is highly recommended to use
 
 1. Install Python 3.9 or later if you haven't already. You can download it from [python.org](https://www.python.org/downloads/).
    Ensure that you add Python to your system's PATH during installation.
+   Also install `git` if you haven't done so already, as it is required to clone the repository.
+    - **macOS/Linux**: Use your package manager (e.g., `brew install python` or `apt-get install python3`).
+    - **Windows**: Download the installer from [python.org](https://www.python.org/downloads/) and run it.
 
 2. **Clone the Repository**
     ```bash
@@ -105,7 +108,6 @@ The FoS parametrization involves several parameters:
 - **Z**: Number of protons.
 - **N**: Number of neutrons.
 - **c**: Elongation parameter. Defines the overall elongation of the nucleus along the z-axis. `c = 1` corresponds to a spherical shape in the absence of other deformations.
-- **q₂**: Entangled parameter related to elongation `c` and neck parameter `a₄` by the formula: `c = q₂ + 1.0 + 1.5 * a₄`. Adjusting `q₂` will affect `c` and vice versa, depending on `a₄`.
 - **a₃**: Reflection asymmetry parameter. Non-zero values introduce a pear-like shape (octupole deformation).
 - **a₄**: Neck parameter (hexadecapole deformation). Positive values create a neck in the middle of the nucleus, while negative values make it more diamond-like.
 - **a₅**: Higher-order reflection asymmetry parameter.
@@ -116,6 +118,7 @@ The FoS parametrization involves several parameters:
 
 The beta harmonics parametrization uses deformation parameters:
 
+- **β₁**: Dipole deformation parameter
 - **β₂**: Quadrupole deformation parameter (prolate/oblate shapes)
 - **β₃**: Octupole deformation parameter (reflection asymmetry)
 - **β₄**: Hexadecapole deformation parameter (necking/anti-necking)
