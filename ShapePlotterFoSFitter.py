@@ -596,8 +596,8 @@ class FoSShapePlotter:
         # Style font sizes for all sliders
         for slider in [self.slider_z, self.slider_n, self.slider_c,
                        self.slider_a3, self.slider_a4, self.slider_a5, self.slider_a6, self.slider_max_beta, self.slider_number_of_points]:
-            slider.label.set_fontsize(14)
-            slider.valtext.set_fontsize(14)
+            slider.label.set_fontsize(10)
+            slider.valtext.set_fontsize(10)
 
         # Style increment/decrement buttons
         for slider_name, buttons in self.slider_buttons.items():

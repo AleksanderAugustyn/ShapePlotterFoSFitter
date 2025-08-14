@@ -56,6 +56,7 @@ def plot_single_shape(args):
 
     try:
         # Extract FoS parameters
+        c_elongation = row_data['c_elongation']
         q2 = row_data['q2']
         a3 = row_data['a3']
         a4 = row_data['a4']
@@ -63,15 +64,11 @@ def plot_single_shape(args):
         a6 = row_data['a6']
         applied_shift = row_data['applied_shift']
 
-        # Calculate c from q2 and a4
-        c = q2 + 1.0 + 1.5 * a4
-
         # Create FoS parameters
         fos_params = FoSParameters(
             protons=z,
             neutrons=n,
-            c_elongation=c,
-            q2=q2,
+            c_elongation=c_elongation,
             a3=a3,
             a4=a4,
             a5=a5,
@@ -177,7 +174,7 @@ def plot_single_shape(args):
         # Create info text
         info_text = (
             f"FoS Parameters:\n"
-            f"c = {c:.3f}, q₂ = {q2:.3f}\n"
+            f"c_elongation = {c_elongation:.3f}, q₂ = {q2:.3f}\n"
             f"a₃ = {a3:.3f}, a₄ = {a4:.3f}\n"
             f"a₅ = {a5:.3f}, a₆ = {a6:.3f}\n"
             f"Applied shift = {applied_shift:.3f} fm\n"
@@ -230,7 +227,7 @@ def plot_single_shape(args):
         # Save figure
         output_directory = "results/FitShapePlots"
         os.makedirs(output_directory, exist_ok=True)
-        output_path = os.path.join(output_directory, f"{base_filename}_shape{row_index + 1:05d}_q2{q2:.3f}_a3{a3:.3f}_a4{a4:.3f}_a5{a5:.3f}_a6{a6:.3f}.png")
+        output_path = os.path.join(output_directory, f"{base_filename}_shape{row_index + 1:05d}_c{c_elongation:.3f}_a3{a3:.3f}_a4{a4:.3f}_a5{a5:.3f}_a6{a6:.3f}.png")
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close(fig)
 
