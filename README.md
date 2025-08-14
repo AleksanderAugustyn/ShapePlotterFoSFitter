@@ -52,7 +52,7 @@ provides insights into the relationship between different nuclear shape parametr
 
 To set up the application on your local machine, it is highly recommended to use a Python virtual environment. This ensures that the project's dependencies are isolated from your system's global Python packages.
 
-1. Install Python 3.9 or later if you haven't already. You can download it from [python.org](https://www.python.org/downloads/).
+1. Install Python 3.9 or later if you haven't already. You can download it from [python.org](https://www.python.org/downloads/) or use a package manager (e.g., 'sudo apt install python3').
    Ensure that you add Python to your system's PATH during installation.
    Also install `git` if you haven't done so already, as it is required to clone the repository.
     - **macOS/Linux**: Use your package manager (e.g., `brew install python` or `apt-get install python3`).
