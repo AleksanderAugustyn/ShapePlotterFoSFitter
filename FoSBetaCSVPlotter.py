@@ -94,8 +94,8 @@ def plot_single_shape(args):
         radius_beta_unnormalized = np.ones_like(theta_beta) * fos_params.radius0
 
         for l, beta_l in beta_dict.items():
-            from scipy.special import sph_harm
-            ylm = sph_harm(0, l, 0, theta_beta).real  # m=0 for axial symmetry
+            from scipy.special import sph_harm_y
+            ylm = sph_harm_y(l, 0, theta_beta, 0.0).real  # m=0 for axial symmetry
             radius_beta_unnormalized += fos_params.radius0 * beta_l * ylm
 
         # Calculate volume fixing factor
