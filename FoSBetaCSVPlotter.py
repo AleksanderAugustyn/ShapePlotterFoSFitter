@@ -26,12 +26,12 @@ def extract_parameters_from_filename(filename: str) -> Tuple[int, int, int, int]
     Extract Z, N, points, and maxbeta from the filename.
 
     Args:
-        filename: CSV filename like 'mintrap_energies_Z92_N144_points720_maxbeta20.csv'
+        filename: CSV filename like 'combined_results_Z92_N144_points720_maxbeta20.csv'
 
     Returns:
         Tuple of (Z, N, points, maxbeta)
     """
-    pattern = r'mintrap_energies_Z(\d+)_N(\d+)_points(\d+)_maxbeta(\d+)\.csv'
+    pattern = r'combined_results_Z(\d+)_N(\d+)_points(\d+)_maxbeta(\d+)\.csv'
     match = re.match(pattern, os.path.basename(filename))
 
     if not match:
