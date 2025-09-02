@@ -1244,7 +1244,6 @@ class FoSShapePlotter:
         max_z: float = np.max(z_fos_cylindrical)
         min_z: float = np.min(z_fos_cylindrical)
         max_rho: float = np.max(rho_fos_cylindrical)
-        min_rho: float = np.min(rho_fos_cylindrical)
         length_along_z_axis: float = float(z_fos_cylindrical[-1] - z_fos_cylindrical[0])
 
         # Calculate neck radius at a4 = 0.72 (scission point)
