@@ -13,7 +13,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 
-matplotlib.use('Agg')  # Set backend before importing pyplot
+matplotlib.use('Agg')
 from multiprocessing import Pool, cpu_count, Manager
 import argparse
 
