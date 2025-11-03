@@ -91,6 +91,44 @@ To set up the application on your local machine, it is highly recommended to use
     ```
     This will install the exact versions of `numpy`, `matplotlib`, `scipy`, and all other necessary packages to ensure the application runs as intended.
 
+### Note on tkinter Dependency
+
+This application requires `tkinter` for its graphical user interface. While `tkinter` is part of Python's standard library and usually comes pre-installed, it may need to be installed separately on some systems.
+
+**Verify tkinter is installed:**
+```bash
+python -c "import tkinter; print('tkinter is installed')"
+```
+**If tkinter is missing:**
+
+Ubuntu/Debian Linux:
+
+```bash
+sudo apt-get install python3-tk
+```
+
+Fedora/RHEL/CentOS:
+
+```bash
+sudo dnf install python3-tkinter
+```
+
+Arch Linux:
+
+```bash
+sudo pacman -S tk
+```
+
+macOS: tkinter should be included with Python. If missing, reinstall Python via Homebrew:
+
+```bash
+brew install python-tk
+```
+
+Windows: tkinter is included with the standard Python installation. If missing, reinstall Python from python.org and ensure "tcl/tk and IDLE" are selected during installation.
+
+Note: tkinter cannot be installed via pip as it requires system-level libraries. This is why it doesn't appear in requirements.txt.
+
 ## Running the Application
 
 Execute the `ShapePlotterFoS.py` script:

@@ -1244,7 +1244,6 @@ class FoSShapePlotter:
         max_z: float = np.max(z_fos_cylindrical)
         min_z: float = np.min(z_fos_cylindrical)
         max_rho: float = np.max(rho_fos_cylindrical)
-        min_rho: float = np.min(rho_fos_cylindrical)
         length_along_z_axis: float = float(z_fos_cylindrical[-1] - z_fos_cylindrical[0])
 
         # Calculate neck radius at a4 = 0.72 (scission point)
@@ -1256,7 +1255,7 @@ class FoSShapePlotter:
         # Create basic information text
         basic_info = (
             f"Number of Shape Points: {current_number_of_points}\n"
-            f"R₀ = {current_params.radius0:.3f} fm\n"
+            f"R₀ = 1.16 * {current_params.nucleons:.0f}^(1/3) = {current_params.radius0:.3f} fm\n"
             f"\nParameter Relations:\n"
             f"a₂ (From Volume Conservation)= a₄/3 - a₆/5\n"
             f"a₂ = {current_params.a4:.3f} / 3.0 - {current_params.a6:.3f} / 5.0 = {current_params.a2:.3f}\n"
@@ -1323,7 +1322,7 @@ class FoSShapePlotter:
         if self.show_text_info:
             # Add new text to the left side of the right text area
             self.ax_text.text(-0.05, 1.0, info_text, transform=self.ax_text.transAxes,
-                              fontsize=8, verticalalignment='top', horizontalalignment='left',
+                              fontsize=6, verticalalignment='top', horizontalalignment='left',
                               bbox={'boxstyle': 'round', 'facecolor': 'wheat', 'alpha': 0.5}, fontfamily='monospace')
 
         # Only show beta parameters text if beta fitting is enabled
