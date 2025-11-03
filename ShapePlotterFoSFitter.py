@@ -590,7 +590,7 @@ class FoSShapePlotter:
         self.slider_a4, _, _ = self.create_slider_with_buttons('a4', first_slider_y + 4 * slider_spacing, 'a₄', -0.75, 0.75, self.initial_a4, 0.01)
         self.slider_a5, _, _ = self.create_slider_with_buttons('a5', first_slider_y + 5 * slider_spacing, 'a₅', -0.5, 0.5, self.initial_a5, 0.01)
         self.slider_a6, _, _ = self.create_slider_with_buttons('a6', first_slider_y + 6 * slider_spacing, 'a₆', -0.5, 0.5, self.initial_a6, 0.01)
-        self.slider_max_beta, _, _ = self.create_slider_with_buttons('max_beta', first_slider_y + 7 * slider_spacing, 'Max Betas Used For Fit', 1.0, 36.0, 12.0, 1.0)
+        self.slider_max_beta, _, _ = self.create_slider_with_buttons('max_beta', first_slider_y + 7 * slider_spacing, 'Max Betas Used For Fit', 1.0, 64.0, 12.0, 1.0)
         self.slider_number_of_points, _, _ = self.create_slider_with_buttons('number_of_points', first_slider_y + 8 * slider_spacing, 'Number of Points', 180, 3600, 720, 180)
 
         # Style font sizes for all sliders
