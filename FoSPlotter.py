@@ -11,7 +11,7 @@ from matplotlib.widgets import Button, Slider, CheckButtons
 from BetaDeformationCalculator import BetaDeformationCalculator, FitResult
 from CylindricalToSphericalConverter import CylindricalToSphericalConverter
 # Import dependencies
-from FoSModel import FoSParameters, FoSShapeCalculator
+from fos_parametrization import FoSParameters, FoSShapeCalculator
 
 # Set backend
 matplotlib.use('TkAgg')

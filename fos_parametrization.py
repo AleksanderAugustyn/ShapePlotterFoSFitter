@@ -1,5 +1,5 @@
 """
-FoSModel.py
+fos_parametrization.py
 Contains the Data Class for parameters and the Calculator for the FoS shape geometry.
 """
 
