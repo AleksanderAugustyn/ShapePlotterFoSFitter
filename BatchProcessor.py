@@ -9,7 +9,7 @@ import sys
 import numpy as np
 
 from CylindricalToSphericalConverter import CylindricalToSphericalConverter
-from fos_parametrization import FoSParameters, FoSShapeCalculator
+from fos_parameterization import FoSParameters, FoSShapeCalculator
 
 
 def calculate_and_save_shape(z, n, c_elongation, a3, a4, a5, a6, number_of_points, output_dir="."):

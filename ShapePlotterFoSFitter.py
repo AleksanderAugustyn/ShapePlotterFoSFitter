@@ -18,8 +18,8 @@ import numpy as np
 from matplotlib.widgets import Button, Slider, CheckButtons
 from scipy.integrate import simpson
 
-from BetaDeformationCalculator import BetaDeformationCalculator, FitResult
 from CylindricalToSphericalConverter import CylindricalToSphericalConverter
+from beta_parameterization_calculator import BetaDeformationCalculator, FitResult
 
 matplotlib.use('TkAgg')
 
