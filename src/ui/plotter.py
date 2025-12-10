@@ -12,9 +12,11 @@ matplotlib.use('TkAgg')
 
 
 class FoSShapePlotter:
-    def __init__(self):
+    """Interactive FoS Shape Plotter with Beta Deformation Fitting."""
+
+    def __init__(self) -> None:
         # --- CONFIGURATION ---
-        self.n_calc = 1800  # High precision for physics/fitting
+        self.n_calc = 7200  # High precision for physics/fitting
         self.n_plot = 360  # Sufficient for visual smoothness
 
         # Default parameters
@@ -36,7 +38,7 @@ class FoSShapePlotter:
         self.setup_controls()
         self.setup_event_handlers()
 
-    def create_figure(self):
+    def create_figure(self) -> None:
         self.fig = plt.figure(figsize=(16.0, 8.0))
         self.ax_plot = self.fig.add_subplot(121)
         self.ax_text = self.fig.add_subplot(122)
@@ -129,7 +131,7 @@ class FoSShapePlotter:
         self.fig.savefig(fname, dpi=300, bbox_inches='tight')
         print(f"Saved {fname}")
 
-    def update_plot(self, _):
+    def update_plot(self, _: None) -> None:
         if self.updating: return
 
         # 1. Update Params
@@ -151,8 +153,8 @@ class FoSShapePlotter:
         self.lines['fos'].set_data(z_fos_calc[idx], rho_fos_calc[idx])
         self.lines['fos_m'].set_data(z_fos_calc[idx], -rho_fos_calc[idx])
 
-        # Update Reference Sphere (Low res is fine)
-        theta_ref = np.linspace(0, 2 * np.pi, 200)
+        # Update Reference Sphere
+        theta_ref = np.linspace(0, 2 * np.pi, 180)
         self.lines['ref_sphere'].set_data(
             self.params.radius0 * np.cos(theta_ref),
             self.params.radius0 * np.sin(theta_ref)
@@ -236,6 +238,7 @@ class FoSShapePlotter:
 
         self.fig.canvas.draw_idle()
 
-    def run(self):
+    def run(self) -> None:
+        """Starts the interactive plotter."""
         self.update_plot(None)
         plt.show()
