@@ -7,7 +7,8 @@ from scipy.special import sph_harm_y
 
 class ShapeComparisonMetrics(TypedDict):
     rmse: float
-    chi_squared: float
+    chi_squared: float  # Raw Chi-Squared
+    chi_squared_reduced: float  # Reduced Chi-Squared (Chi^2 / DoF)
     l_infinity: float
 
 
@@ -62,21 +63,42 @@ class BetaDeformationCalculator:
         return theta_recon, scale_factor * r_pre
 
     @staticmethod
-    def calculate_errors(r_original: np.ndarray, r_reconstructed: np.ndarray) -> ShapeComparisonMetrics:
-        """Calculates RMSE, Chi-Squared, and L-infinity errors."""
+    def calculate_errors(r_original: np.ndarray,
+                         r_reconstructed: np.ndarray,
+                         n_params: int = 0) -> ShapeComparisonMetrics:
+        """
+        Calculates RMSE, Raw Chi-Squared, Reduced Chi-Squared, and L-infinity errors.
+
+        Args:
+            r_original: The reference radial values.
+            r_reconstructed: The radial values from the beta expansion.
+            n_params: Number of fitted parameters (used for Degrees of Freedom).
+                      If 0, DoF = N_points.
+        """
         diff = r_original - r_reconstructed
         squared_diff = diff ** 2
 
+        # RMSE
         rmse = np.sqrt(np.mean(squared_diff))
+
+        # L-infinity (Max absolute error)
         l_inf = np.max(np.abs(diff))
 
-        # Pearson-like Chi-Squared: sum((Obs - Exp)^2 / Exp)
-        # Avoid division by zero
+        # Raw Chi-Squared (Pearson-like): sum((Obs - Exp)^2 / Exp)
+        # We use r_original as the expected value in the denominator for weighting.
+        # Avoid division by zero by clamping the denominator.
         safe_r = np.where(r_original < 1e-10, 1e-10, r_original)
         chi_sq = np.sum(squared_diff / safe_r)
+
+        # Reduced Chi-Squared: Chi^2 / DoF
+        # DoF = N_points - N_parameters
+        n_points = len(r_original)
+        dof = max(1, n_points - n_params)
+        chi_sq_red = chi_sq / dof
 
         return {
             "rmse": rmse,
             "chi_squared": chi_sq,
+            "chi_squared_reduced": chi_sq_red,
             "l_infinity": l_inf
         }

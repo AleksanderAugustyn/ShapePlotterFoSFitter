@@ -146,7 +146,6 @@ class FoSShapePlotter:
         z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc)
 
         # 3. Downsample for Plotting
-        # FIX: Use linspace to ensure endpoints (poles) are always included
         idx = np.linspace(0, self.n_calc - 1, self.n_plot, dtype=int)
 
         self.lines['fos'].set_data(z_fos_calc[idx], rho_fos_calc[idx])
@@ -188,10 +187,11 @@ class FoSShapePlotter:
 
                 # 6. Reconstruct for Error Metrics (HIGH PRECISION)
                 theta_rec_calc, r_rec_calc = beta_calc.reconstruct_shape(betas, self.n_calc)
-                errors = beta_calc.calculate_errors(r_fos_sph_calc, r_rec_calc)
+
+                # Pass n_params (l_max) to calculate Reduced Chi-Squared
+                errors = beta_calc.calculate_errors(r_fos_sph_calc, r_rec_calc, n_params=l_max)
 
                 # 7. Reconstruct for Plotting (LOW PRECISION via Downsampling)
-                # FIX: Use the same indices to ensure the shape is closed
                 theta_plot = theta_rec_calc[idx]
                 r_rec_plot = r_rec_calc[idx]
 
@@ -207,6 +207,7 @@ class FoSShapePlotter:
                 metrics_text = (f"\nFit Metrics (N={self.n_calc}):\n"
                                 f"RMSE: {errors['rmse']:.4f} fm\n"
                                 f"Chi^2: {errors['chi_squared']:.4f}\n"
+                                f"Chi^2 (Red): {errors['chi_squared_reduced']:.6f}\n"
                                 f"L_inf: {errors['l_infinity']:.4f} fm")
             else:
                 self.lines['beta'].set_data([], [])
