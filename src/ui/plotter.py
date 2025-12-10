@@ -13,10 +13,12 @@ matplotlib.use('TkAgg')
 
 class FoSShapePlotter:
     def __init__(self):
+        # --- CONFIGURATION ---
+        self.n_calc = 1800  # High precision for physics/fitting
+        self.n_plot = 360  # Sufficient for visual smoothness
+
         # Default parameters
         self.params = FoSParameters()
-        self.max_beta = 12
-        self.n_points = 720
 
         # UI State
         self.show_text_info = True
@@ -28,7 +30,7 @@ class FoSShapePlotter:
         self.fig = None
         self.ax_plot = None
         self.ax_text = None
-        self.lines = {}  # Store line objects
+        self.lines = {}
 
         self.create_figure()
         self.setup_controls()
@@ -78,7 +80,7 @@ class FoSShapePlotter:
         self.sl_a4 = self.create_slider('a4', y_start + 4 * spacing, 'a4', -0.75, 0.75, 0.0, 0.01)
         self.sl_a5 = self.create_slider('a5', y_start + 5 * spacing, 'a5', -0.5, 0.5, 0.0, 0.01)
         self.sl_a6 = self.create_slider('a6', y_start + 6 * spacing, 'a6', -0.5, 0.5, 0.0, 0.01)
-        self.sl_max_beta = self.create_slider('mb', y_start + 7 * spacing, 'Max Beta', 1, 32, 12, 1)
+        self.sl_max_beta = self.create_slider('mb', y_start + 7 * spacing, 'Max Beta', 1, 128, 12, 1)
 
         # Checkboxes and Buttons
         self.chk_text = CheckButtons(plt.axes((0.82, 0.45, 0.08, 0.032)), ['Show Info'], [True])
@@ -130,7 +132,7 @@ class FoSShapePlotter:
     def update_plot(self, _):
         if self.updating: return
 
-        # Update params
+        # 1. Update Params
         self.params.protons = int(self.sl_z.val)
         self.params.neutrons = int(self.sl_n.val)
         self.params.c_elongation = self.sl_c.val
@@ -139,62 +141,71 @@ class FoSShapePlotter:
         self.params.a5 = self.sl_a5.val
         self.params.a6 = self.sl_a6.val
 
-        # Calculate FoS
+        # 2. Calculate FoS (HIGH PRECISION)
         calc = FoSShapeCalculator(self.params)
-        z_fos, rho_fos = calc.calculate_shape(self.n_points)
+        z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc)
 
-        self.lines['fos'].set_data(z_fos, rho_fos)
-        self.lines['fos_m'].set_data(z_fos, -rho_fos)
+        # 3. Downsample for Plotting
+        # FIX: Use linspace to ensure endpoints (poles) are always included
+        idx = np.linspace(0, self.n_calc - 1, self.n_plot, dtype=int)
 
-        # Update Reference Sphere
+        self.lines['fos'].set_data(z_fos_calc[idx], rho_fos_calc[idx])
+        self.lines['fos_m'].set_data(z_fos_calc[idx], -rho_fos_calc[idx])
+
+        # Update Reference Sphere (Low res is fine)
         theta_ref = np.linspace(0, 2 * np.pi, 200)
         self.lines['ref_sphere'].set_data(
             self.params.radius0 * np.cos(theta_ref),
             self.params.radius0 * np.sin(theta_ref)
         )
 
-        # Beta Calculation
         beta_text = ""
         metrics_text = ""
 
         if self.show_beta_approx:
-            # Conversion Logic with shifting
-            z_work = z_fos.copy()
-            conv = CylindricalToSphericalConverter(z_work, rho_fos)
+            # 4. Conversion (HIGH PRECISION)
+            z_work = z_fos_calc.copy()
+            conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
 
-            # Shift if not star-shaped
+            # Shift Logic
             shift = 0.0
-            if not conv.is_unambiguously_convertible(self.n_points):
+            if not conv.is_unambiguously_convertible(self.n_calc):
                 direction = -1.0 if self.params.z_sh >= 0 else 1.0
-                max_shift = (np.max(z_fos) - np.min(z_fos)) / 2.0
+                max_shift = (np.max(z_fos_calc) - np.min(z_fos_calc)) / 2.0
                 while abs(shift) < max_shift:
                     shift += direction * 0.1
-                    z_work = z_fos + shift
-                    conv = CylindricalToSphericalConverter(z_work, rho_fos)
-                    if conv.is_unambiguously_convertible(self.n_points): break
+                    z_work = z_fos_calc + shift
+                    conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
+                    if conv.is_unambiguously_convertible(self.n_calc): break
 
-            if conv.is_unambiguously_convertible(self.n_points):
-                theta, r_fos_sph = conv.convert_to_spherical(self.n_points)
+            if conv.is_unambiguously_convertible(self.n_calc):
+                theta_calc, r_fos_sph_calc = conv.convert_to_spherical(self.n_calc)
 
-                # Beta Logic
-                beta_calc = BetaDeformationCalculator(theta, r_fos_sph, self.params.nucleons)
+                # 5. Beta Calculation (HIGH PRECISION)
+                beta_calc = BetaDeformationCalculator(theta_calc, r_fos_sph_calc, self.params.nucleons)
                 l_max = int(self.sl_max_beta.val)
                 betas = beta_calc.calculate_beta_parameters(l_max)
 
-                # Reconstruction
-                theta_rec, r_rec = beta_calc.reconstruct_shape(betas, self.n_points)
-                errors = beta_calc.calculate_errors(r_fos_sph, r_rec)
+                # 6. Reconstruct for Error Metrics (HIGH PRECISION)
+                theta_rec_calc, r_rec_calc = beta_calc.reconstruct_shape(betas, self.n_calc)
+                errors = beta_calc.calculate_errors(r_fos_sph_calc, r_rec_calc)
 
-                # Plot Beta
-                z_beta = r_rec * np.cos(theta_rec) - shift
-                rho_beta = r_rec * np.sin(theta_rec)
+                # 7. Reconstruct for Plotting (LOW PRECISION via Downsampling)
+                # FIX: Use the same indices to ensure the shape is closed
+                theta_plot = theta_rec_calc[idx]
+                r_rec_plot = r_rec_calc[idx]
+
+                z_beta = r_rec_plot * np.cos(theta_plot) - shift
+                rho_beta = r_rec_plot * np.sin(theta_plot)
+
                 self.lines['beta'].set_data(z_beta, rho_beta)
                 self.lines['beta_m'].set_data(z_beta, -rho_beta)
 
                 # Text Info
                 beta_str = [f"β_{l}={v:+.4f}" for l, v in betas.items() if abs(v) > 0.001]
                 beta_text = "Beta Params:\n" + "\n".join([", ".join(beta_str[i:i + 3]) for i in range(0, len(beta_str), 3)])
-                metrics_text = (f"\nFit Metrics:\nRMSE: {errors['rmse']:.4f} fm\n"
+                metrics_text = (f"\nFit Metrics (N={self.n_calc}):\n"
+                                f"RMSE: {errors['rmse']:.4f} fm\n"
                                 f"Chi^2: {errors['chi_squared']:.4f}\n"
                                 f"L_inf: {errors['l_infinity']:.4f} fm")
             else:
@@ -206,7 +217,7 @@ class FoSShapePlotter:
             self.lines['beta_m'].set_data([], [])
 
         # Auto-scale
-        limit = max(np.max(np.abs(z_fos)), np.max(rho_fos)) * 1.2
+        limit = max(np.max(np.abs(z_fos_calc)), np.max(rho_fos_calc)) * 1.2
         self.ax_plot.set_xlim(-limit, limit)
         self.ax_plot.set_ylim(-limit, limit)
         self.ax_plot.set_title(f"Z={self.params.protons} N={self.params.neutrons} (FoS)")
