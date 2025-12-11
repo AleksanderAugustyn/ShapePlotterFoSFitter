@@ -138,10 +138,10 @@ class FoSShapePlotter:
         self.params.protons = int(self.sl_z.val)
         self.params.neutrons = int(self.sl_n.val)
         self.params.c_elongation = self.sl_c.val
-        self.params.a3 = self.sl_a3.val
-        self.params.a4 = self.sl_a4.val
-        self.params.a5 = self.sl_a5.val
-        self.params.a6 = self.sl_a6.val
+        self.params.set_coefficient(3, self.sl_a3.val)
+        self.params.set_coefficient(4, self.sl_a4.val)
+        self.params.set_coefficient(5, self.sl_a5.val)
+        self.params.set_coefficient(6, self.sl_a6.val)
 
         # 2. Calculate FoS (HIGH PRECISION)
         calc = FoSShapeCalculator(self.params)
@@ -231,7 +231,7 @@ class FoSShapePlotter:
         if self.show_text_info:
             info = (f"FoS Parameters:\n"
                     f"c={self.params.c_elongation:.3f}, q2={self.params.q2:.3f}\n"
-                    f"a3={self.params.a3:.3f}, a4={self.params.a4:.3f}\n"
+                    f"a3={self.params.get_coefficient(3):.3f}, a4={self.params.get_coefficient(4):.3f}\n"
                     f"R0={self.params.radius0:.3f}\n\n" + beta_text + metrics_text)
 
             self.ax_text.text(0, 1, info, va='top', fontfamily='monospace', fontsize=9)
