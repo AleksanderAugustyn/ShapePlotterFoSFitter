@@ -67,6 +67,11 @@ class FoSParameters:
         return (4.0 / 3.0) * np.pi * self.radius0 ** 3
 
     @property
+    def sphere_surface_area(self) -> float:
+        """Surface area of the spherical nucleus."""
+        return 4.0 * np.pi * self.radius0 ** 2
+
+    @property
     def z_sh(self) -> float:
         """Shift to place the center of mass at origin.
 

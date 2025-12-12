@@ -63,6 +63,25 @@ class BetaDeformationCalculator:
         return theta_recon, scale_factor * r_pre
 
     @staticmethod
+    def calculate_volume_spherical(theta: np.ndarray, r: np.ndarray) -> float:
+        """Calculate volume from spherical coordinates r(θ).
+
+        V = (2π/3) ∫₀^π r(θ)³ sin(θ) dθ
+        """
+        integrand = r ** 3 * np.sin(theta)
+        return float((2 * np.pi / 3) * simpson(integrand, x=theta))
+
+    @staticmethod
+    def calculate_surface_area_spherical(theta: np.ndarray, r: np.ndarray) -> float:
+        """Calculate surface area from spherical coordinates r(θ).
+
+        S = 2π ∫₀^π r(θ) sin(θ) √(r² + (dr/dθ)²) dθ
+        """
+        dr_dtheta = np.gradient(r, theta)
+        integrand = r * np.sin(theta) * np.sqrt(r ** 2 + dr_dtheta ** 2)
+        return float(2 * np.pi * simpson(integrand, x=theta))
+
+    @staticmethod
     def calculate_errors(r_original: np.ndarray,
                          r_reconstructed: np.ndarray,
                          n_params: int = 0) -> ShapeComparisonMetrics:

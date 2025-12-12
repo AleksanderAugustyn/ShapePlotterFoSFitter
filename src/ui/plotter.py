@@ -24,7 +24,7 @@ class FoSShapePlotter:
 
         # UI State
         self.show_text_info = True
-        self.show_beta_approx = True
+        self.show_beta_approx = False
         self.updating = False
         self.slider_buttons = {}
 
@@ -86,9 +86,10 @@ class FoSShapePlotter:
 
         # Checkboxes and Buttons
         self.chk_text = CheckButtons(plt.axes((0.82, 0.45, 0.08, 0.032)), ['Show Info'], [True])
-        self.chk_beta = CheckButtons(plt.axes((0.82, 0.42, 0.08, 0.032)), ['Show Beta'], [True])
+        self.chk_beta = CheckButtons(plt.axes((0.82, 0.42, 0.08, 0.032)), ['Show Beta'], [False])
         self.btn_reset = Button(plt.axes((0.82, 0.37, 0.08, 0.032)), 'Reset')
         self.btn_save = Button(plt.axes((0.82, 0.32, 0.08, 0.032)), 'Save Plot')
+        self.btn_print_beta = Button(plt.axes((0.82, 0.27, 0.08, 0.032)), 'Print Betas')
 
     def setup_event_handlers(self):
         sliders = [self.sl_z, self.sl_n, self.sl_c, self.sl_a3, self.sl_a4, self.sl_a5, self.sl_a6, self.sl_max_beta]
@@ -104,6 +105,7 @@ class FoSShapePlotter:
         self.chk_beta.on_clicked(self.toggle_beta)
         self.btn_reset.on_clicked(self.reset_values)
         self.btn_save.on_clicked(self.save_plot)
+        self.btn_print_beta.on_clicked(self.print_beta_parameters)
 
     def toggle_text(self, _):
         self.show_text_info = not self.show_text_info
@@ -130,6 +132,45 @@ class FoSShapePlotter:
         fname = f"fos_shape_Z{int(self.sl_z.val)}_N{int(self.sl_n.val)}.png"
         self.fig.savefig(fname, dpi=300, bbox_inches='tight')
         print(f"Saved {fname}")
+
+    def print_beta_parameters(self, _):
+        """Calculate and print beta parameters to command line."""
+        calc = FoSShapeCalculator(self.params)
+        z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc)
+
+        z_work = z_fos_calc.copy()
+        conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
+
+        shift = 0.0
+        if not conv.is_unambiguously_convertible(self.n_calc):
+            direction = -1.0 if self.params.z_sh >= 0 else 1.0
+            max_shift = (np.max(z_fos_calc) - np.min(z_fos_calc)) / 2.0
+            while abs(shift) < max_shift:
+                shift += direction * 0.1
+                z_work = z_fos_calc + shift
+                conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
+                if conv.is_unambiguously_convertible(self.n_calc):
+                    break
+
+        if conv.is_unambiguously_convertible(self.n_calc):
+            theta_calc, r_fos_sph_calc = conv.convert_to_spherical(self.n_calc)
+            beta_calc = BetaDeformationCalculator(theta_calc, r_fos_sph_calc, self.params.nucleons)
+            l_max = int(self.sl_max_beta.val)
+            betas = beta_calc.calculate_beta_parameters(l_max)
+
+            print("\n" + "=" * 50)
+            print("Fitted Beta Parameters")
+            print("=" * 50)
+            print(f"Z={self.params.protons}, N={self.params.neutrons}, A={self.params.nucleons}")
+            print(f"FoS: c={self.params.c_elongation:.4f}, a3={self.params.get_coefficient(3):.4f}, "
+                  f"a4={self.params.get_coefficient(4):.4f}, a5={self.params.get_coefficient(5):.4f}, "
+                  f"a6={self.params.get_coefficient(6):.4f}")
+            print("-" * 50)
+            for l, val in sorted(betas.items()):
+                print(f"beta_{l:2d} = {val:+.6f}")
+            print("=" * 50 + "\n")
+        else:
+            print("Shape not convertible to spherical coordinates.")
 
     def update_plot(self, _: None) -> None:
         if self.updating: return
@@ -160,40 +201,65 @@ class FoSShapePlotter:
             self.params.radius0 * np.sin(theta_ref)
         )
 
-        beta_text = ""
+        # Calculate FoS volume and surface area (cylindrical)
+        fos_volume = FoSShapeCalculator.calculate_volume(z_fos_calc, rho_fos_calc)
+        fos_surface = FoSShapeCalculator.calculate_surface_area(z_fos_calc, rho_fos_calc)
+
+        # Spherical conversion for volume/surface calculation
+        spherical_text = ""
+        beta_fit_text = ""
         metrics_text = ""
 
-        if self.show_beta_approx:
-            # 4. Conversion (HIGH PRECISION)
-            z_work = z_fos_calc.copy()
-            conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
+        # Always try to convert to spherical for volume/surface calculation
+        z_work = z_fos_calc.copy()
+        conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
 
-            # Shift Logic
-            shift = 0.0
-            if not conv.is_unambiguously_convertible(self.n_calc):
-                direction = -1.0 if self.params.z_sh >= 0 else 1.0
-                max_shift = (np.max(z_fos_calc) - np.min(z_fos_calc)) / 2.0
-                while abs(shift) < max_shift:
-                    shift += direction * 0.1
-                    z_work = z_fos_calc + shift
-                    conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
-                    if conv.is_unambiguously_convertible(self.n_calc): break
+        shift = 0.0
+        if not conv.is_unambiguously_convertible(self.n_calc):
+            direction = -1.0 if self.params.z_sh >= 0 else 1.0
+            max_shift = (np.max(z_fos_calc) - np.min(z_fos_calc)) / 2.0
+            while abs(shift) < max_shift:
+                shift += direction * 0.1
+                z_work = z_fos_calc + shift
+                conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
+                if conv.is_unambiguously_convertible(self.n_calc):
+                    break
 
-            if conv.is_unambiguously_convertible(self.n_calc):
-                theta_calc, r_fos_sph_calc = conv.convert_to_spherical(self.n_calc)
+        if conv.is_unambiguously_convertible(self.n_calc):
+            theta_calc, r_fos_sph_calc = conv.convert_to_spherical(self.n_calc)
 
-                # 5. Beta Calculation (HIGH PRECISION)
+            # Calculate spherical volume/surface
+            sph_volume = BetaDeformationCalculator.calculate_volume_spherical(theta_calc, r_fos_sph_calc)
+            sph_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_calc, r_fos_sph_calc)
+            spherical_text = (f"FoS Shape (spherical):\n"
+                              f"  Volume:  {sph_volume:.2f} fm^3\n"
+                              f"  Surface: {sph_surface:.2f} fm^2\n\n")
+
+            if self.show_beta_approx:
+                # Beta Calculation (HIGH PRECISION)
                 beta_calc = BetaDeformationCalculator(theta_calc, r_fos_sph_calc, self.params.nucleons)
                 l_max = int(self.sl_max_beta.val)
                 betas = beta_calc.calculate_beta_parameters(l_max)
 
-                # 6. Reconstruct for Error Metrics (HIGH PRECISION)
+                # Reconstruct for Error Metrics (HIGH PRECISION)
                 theta_rec_calc, r_rec_calc = beta_calc.reconstruct_shape(betas, self.n_calc)
+
+                # Calculate beta fit volume/surface
+                beta_volume = BetaDeformationCalculator.calculate_volume_spherical(theta_rec_calc, r_rec_calc)
+                beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_rec_calc, r_rec_calc)
+                beta_fit_text = (f"Beta Fit Shape:\n"
+                                 f"  Volume:  {beta_volume:.2f} fm^3\n"
+                                 f"  Surface: {beta_surface:.2f} fm^2\n\n")
 
                 # Pass n_params (l_max) to calculate Reduced Chi-Squared
                 errors = beta_calc.calculate_errors(r_fos_sph_calc, r_rec_calc, n_params=l_max)
+                metrics_text = (f"Fit Metrics (N={self.n_calc}):\n"
+                                f"  RMSE:        {errors['rmse']:.4f} fm\n"
+                                f"  Chi^2:       {errors['chi_squared']:.4f}\n"
+                                f"  Chi^2 (Red): {errors['chi_squared_reduced']:.6f}\n"
+                                f"  L_inf:       {errors['l_infinity']:.4f} fm")
 
-                # 7. Reconstruct for Plotting (LOW PRECISION via Downsampling)
+                # Reconstruct for Plotting (LOW PRECISION via Downsampling)
                 theta_plot = theta_rec_calc[idx]
                 r_rec_plot = r_rec_calc[idx]
 
@@ -202,20 +268,11 @@ class FoSShapePlotter:
 
                 self.lines['beta'].set_data(z_beta, rho_beta)
                 self.lines['beta_m'].set_data(z_beta, -rho_beta)
-
-                # Text Info
-                beta_str = [f"β_{l}={v:+.4f}" for l, v in betas.items() if abs(v) > 0.001]
-                beta_text = "Beta Params:\n" + "\n".join([", ".join(beta_str[i:i + 3]) for i in range(0, len(beta_str), 3)])
-                metrics_text = (f"\nFit Metrics (N={self.n_calc}):\n"
-                                f"RMSE: {errors['rmse']:.4f} fm\n"
-                                f"Chi^2: {errors['chi_squared']:.4f}\n"
-                                f"Chi^2 (Red): {errors['chi_squared_reduced']:.6f}\n"
-                                f"L_inf: {errors['l_infinity']:.4f} fm")
             else:
                 self.lines['beta'].set_data([], [])
                 self.lines['beta_m'].set_data([], [])
-                beta_text = "Shape not convertible to spherical."
         else:
+            spherical_text = "Shape not convertible to spherical.\n\n"
             self.lines['beta'].set_data([], [])
             self.lines['beta_m'].set_data([], [])
 
@@ -232,7 +289,14 @@ class FoSShapePlotter:
             info = (f"FoS Parameters:\n"
                     f"c={self.params.c_elongation:.3f}, q2={self.params.q2:.3f}\n"
                     f"a3={self.params.get_coefficient(3):.3f}, a4={self.params.get_coefficient(4):.3f}\n"
-                    f"R0={self.params.radius0:.3f}\n\n" + beta_text + metrics_text)
+                    f"R0={self.params.radius0:.3f}\n\n"
+                    f"Spherical Nucleus:\n"
+                    f"  Volume:  {self.params.sphere_volume:.2f} fm^3\n"
+                    f"  Surface: {self.params.sphere_surface_area:.2f} fm^2\n\n"
+                    f"FoS Shape (cylindrical):\n"
+                    f"  Volume:  {fos_volume:.2f} fm^3\n"
+                    f"  Surface: {fos_surface:.2f} fm^2\n\n"
+                    + spherical_text + beta_fit_text + metrics_text)
 
             self.ax_text.text(0, 1, info, va='top', fontfamily='monospace', fontsize=9)
 
