@@ -1,7 +1,11 @@
 """FoS Shape Plotter with Beta Deformation Fitting UI."""
+from typing import Any, cast
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.widgets import Button, Slider, CheckButtons
 
@@ -31,27 +35,27 @@ class FoSShapePlotter:
         self.slider_buttons: dict[str, dict[str, Button | Slider]] = {}
 
         # Plot elements
-        self.fig = None
-        self.ax_plot = None
-        self.ax_text = None
-        self.lines: dict[str, matplotlib.lines.Line2D] = {}
+        self.fig: Figure | None = None
+        self.ax_plot: Axes | None = None
+        self.ax_text: Axes | None = None
+        self.lines: dict[str, Line2D] = {}
 
         # Control elements
         # Sliders
-        self.sl_z = None
-        self.sl_n = None
-        self.sl_c = None
-        self.sl_a3 = None
-        self.sl_a4 = None
-        self.sl_a5 = None
-        self.sl_a6 = None
-        self.sl_max_beta = None
+        self.sl_z: Slider | None = None
+        self.sl_n: Slider | None = None
+        self.sl_c: Slider | None = None
+        self.sl_a3: Slider | None = None
+        self.sl_a4: Slider | None = None
+        self.sl_a5: Slider | None = None
+        self.sl_a6: Slider | None = None
+        self.sl_max_beta: Slider | None = None
         # Checkboxes and Buttons
-        self.chk_text = None
-        self.chk_beta = None
-        self.btn_reset = None
-        self.btn_save = None
-        self.btn_print_beta = None
+        self.chk_text: CheckButtons | None = None
+        self.chk_beta: CheckButtons | None = None
+        self.btn_reset: Button | None = None
+        self.btn_save: Button | None = None
+        self.btn_print_beta: Button | None = None
 
         self.create_figure()
         self.setup_controls()
@@ -62,6 +66,10 @@ class FoSShapePlotter:
         self.fig = plt.figure(figsize=(16.0, 8.0))
         self.ax_plot = self.fig.add_subplot(121)
         self.ax_text = self.fig.add_subplot(122)
+
+        if self.ax_text is None or self.ax_plot is None:
+            raise RuntimeError("Failed to create axes")
+
         self.ax_text.axis('off')
 
         plt.subplots_adjust(left=0.13, bottom=0.38, right=0.97, top=0.97, wspace=0.1)
@@ -79,7 +87,7 @@ class FoSShapePlotter:
 
         self.ax_plot.legend(loc='upper right')
 
-    def create_slider(self, name, y_pos, label, vmin, vmax, vinit, step):
+    def create_slider(self, name: str, y_pos: float, label: str, vmin: float, vmax: float, vinit: float, step: float) -> Slider:
         ax_dec = plt.axes((0.20, y_pos, 0.016, 0.024))
         ax_sl = plt.axes((0.25, y_pos, 0.5, 0.024))
         ax_inc = plt.axes((0.78, y_pos, 0.016, 0.024))
@@ -115,49 +123,67 @@ class FoSShapePlotter:
 
     def setup_event_handlers(self) -> None:
         """Sets up event handlers for sliders and buttons."""
+        if self.sl_z is None: return
+
         sliders = [self.sl_z, self.sl_n, self.sl_c, self.sl_a3, self.sl_a4, self.sl_a5, self.sl_a6, self.sl_max_beta]
         for sl in sliders:
-            sl.on_changed(self.update_plot)
+            if sl is not None:
+                sl.on_changed(self.update_plot)
 
         for name, items in self.slider_buttons.items():
-            slider = items['slider']
-            items['dec'].on_clicked(lambda _, s=slider: s.set_val(max(s.val - s.valstep, s.valmin)))
-            items['inc'].on_clicked(lambda _, s=slider: s.set_val(min(s.val + s.valstep, s.valmax)))
+            # Use cast to help type checker identify specific widget types from the union
+            slider = cast(Slider, items['slider'])
+            btn_dec = cast(Button, items['dec'])
+            btn_inc = cast(Button, items['inc'])
 
-        self.chk_text.on_clicked(self.toggle_text)
-        self.chk_beta.on_clicked(self.toggle_beta)
-        self.btn_reset.on_clicked(self.reset_values)
-        self.btn_save.on_clicked(self.save_plot)
-        self.btn_print_beta.on_clicked(self.print_beta_parameters)
+            # Button.on_clicked expects a callback.
+            # Using default arg 's=slider' to capture the specific slider instance
+            btn_dec.on_clicked(lambda _, s=slider: s.set_val(max(s.val - s.valstep, s.valmin)))
+            btn_inc.on_clicked(lambda _, s=slider: s.set_val(min(s.val + s.valstep, s.valmax)))
 
-    def toggle_text(self, _):
+        if self.chk_text: self.chk_text.on_clicked(self.toggle_text)
+        if self.chk_beta: self.chk_beta.on_clicked(self.toggle_beta)
+        if self.btn_reset: self.btn_reset.on_clicked(self.reset_values)
+        if self.btn_save: self.btn_save.on_clicked(self.save_plot)
+        if self.btn_print_beta: self.btn_print_beta.on_clicked(self.print_beta_parameters)
+
+    def toggle_text(self, _: Any) -> None:
         self.show_text_info = not self.show_text_info
         self.update_plot(None)
 
-    def toggle_beta(self, _):
+    def toggle_beta(self, _: Any) -> None:
         self.show_beta_approx = not self.show_beta_approx
         self.update_plot(None)
 
-    def reset_values(self, _):
+    def reset_values(self, _: Any) -> None:
+        if self.sl_z is None or self.sl_n is None or self.sl_c is None:
+            return
+
         self.updating = True
         self.sl_z.set_val(92)
         self.sl_n.set_val(144)
         self.sl_c.set_val(1.0)
-        self.sl_a3.set_val(0.0)
-        self.sl_a4.set_val(0.0)
-        self.sl_a5.set_val(0.0)
-        self.sl_a6.set_val(0.0)
-        self.sl_max_beta.set_val(12)
+        # Assuming other sliders exist if these do
+        if self.sl_a3: self.sl_a3.set_val(0.0)
+        if self.sl_a4: self.sl_a4.set_val(0.0)
+        if self.sl_a5: self.sl_a5.set_val(0.0)
+        if self.sl_a6: self.sl_a6.set_val(0.0)
+        if self.sl_max_beta: self.sl_max_beta.set_val(12)
         self.updating = False
         self.update_plot(None)
 
-    def save_plot(self, _):
+    def save_plot(self, _: Any) -> None:
+        if self.sl_z is None or self.sl_n is None or self.fig is None:
+            return
+
         file_name = f"fos_shape_Z{int(self.sl_z.val)}_N{int(self.sl_n.val)}_c{self.sl_c.val:.2f}_a3{self.sl_a3.val:.2f}_a4{self.sl_a4.val:.2f}_a5{self.sl_a5.val:.2f}_a6{self.sl_a6.val:.2f}.png"
         self.fig.savefig(file_name, dpi=300, bbox_inches='tight')
         print(f"Saved {file_name}")
 
-    def print_beta_parameters(self, _):
+    def print_beta_parameters(self, _: Any) -> None:
         """Calculate and print beta parameters to the command line."""
+        if self.sl_max_beta is None: return
+
         calc = FoSShapeCalculator(self.params)
         z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc)
 
@@ -195,9 +221,16 @@ class FoSShapePlotter:
         else:
             print("Shape is not convertible to spherical coordinates.")
 
-    def update_plot(self, _: None) -> None:
+    def update_plot(self, _: Any) -> None:
         """Updates the plot based on current slider values."""
         if self.updating:
+            return
+
+        # Ensure critical attributes are initialized
+        if (self.sl_z is None or self.sl_n is None or self.sl_c is None or
+                self.sl_a3 is None or self.sl_a4 is None or self.sl_a5 is None or
+                self.sl_a6 is None or self.sl_max_beta is None or
+                self.ax_plot is None or self.ax_text is None or self.fig is None):
             return
 
         # 1. Update Params
