@@ -1,11 +1,14 @@
+"""Beta deformation parameterization and shape error calculations."""
 from typing import Dict, Tuple, TypedDict
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy.integrate import simpson
 from scipy.special import sph_harm_y
 
 
 class ShapeComparisonMetrics(TypedDict):
+    """Metrics for comparing original and reconstructed shapes."""
     rmse: float
     chi_squared: float  # Raw Chi-Squared
     chi_squared_reduced: float  # Reduced Chi-Squared (Chi^2 / DoF)
@@ -25,9 +28,10 @@ class BetaDeformationCalculator:
         self.theta = self.theta[sort_idx]
         self.r = self.r[sort_idx]
         self.sin_theta = np.sin(self.theta)
-        self._ylm_cache = {}
+        self._ylm_cache: Dict[int, NDArray[np.float64]] = {}
 
-    def _get_ylm(self, l: int) -> np.ndarray:
+    def _get_ylm(self, l: int) -> NDArray[np.float64]:
+        """Get cached Y_l0(θ) values."""
         if l not in self._ylm_cache:
             self._ylm_cache[l] = sph_harm_y(l, 0, self.theta, 0.0).real
         return self._ylm_cache[l]
@@ -36,8 +40,8 @@ class BetaDeformationCalculator:
         """Calculates analytical beta parameters."""
         beta = {}
         # Denominator: ∫ Y_00 sin(θ) dθ (Always constant for l=0)
-        denom_integrand = self.r * self._get_ylm(0) * self.sin_theta
-        denominator = simpson(denom_integrand, x=self.theta)
+        denominator_integrand = self.r * self._get_ylm(0) * self.sin_theta
+        denominator = simpson(denominator_integrand, x=self.theta)
 
         for l in range(1, l_max + 1):
             num_integrand = self.r * self._get_ylm(l) * self.sin_theta
@@ -110,7 +114,7 @@ class BetaDeformationCalculator:
         chi_sq = np.sum(squared_diff / safe_r)
 
         # Reduced Chi-Squared: Chi^2 / DoF
-        # DoF = N_points - N_parameters
+        # Degrees of Freedom = N_points - N_parameters
         n_points = len(r_original)
         dof = max(1, n_points - n_params)
         chi_sq_red = chi_sq / dof

@@ -1,6 +1,8 @@
+"""FoS Shape Plotter with Beta Deformation Fitting UI."""
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.lines import Line2D
 from matplotlib.widgets import Button, Slider, CheckButtons
 
 from src.parameterizations.beta import BetaDeformationCalculator
@@ -26,19 +28,37 @@ class FoSShapePlotter:
         self.show_text_info = True
         self.show_beta_approx = False
         self.updating = False
-        self.slider_buttons = {}
+        self.slider_buttons: dict[str, dict[str, Button | Slider]] = {}
 
         # Plot elements
         self.fig = None
         self.ax_plot = None
         self.ax_text = None
-        self.lines = {}
+        self.lines: dict[str, matplotlib.lines.Line2D] = {}
+
+        # Control elements
+        # Sliders
+        self.sl_z = None
+        self.sl_n = None
+        self.sl_c = None
+        self.sl_a3 = None
+        self.sl_a4 = None
+        self.sl_a5 = None
+        self.sl_a6 = None
+        self.sl_max_beta = None
+        # Checkboxes and Buttons
+        self.chk_text = None
+        self.chk_beta = None
+        self.btn_reset = None
+        self.btn_save = None
+        self.btn_print_beta = None
 
         self.create_figure()
         self.setup_controls()
         self.setup_event_handlers()
 
     def create_figure(self) -> None:
+        """Creates the main figure and axes for plotting."""
         self.fig = plt.figure(figsize=(16.0, 8.0))
         self.ax_plot = self.fig.add_subplot(121)
         self.ax_text = self.fig.add_subplot(122)
@@ -71,10 +91,12 @@ class FoSShapePlotter:
         self.slider_buttons[name] = {'slider': slider, 'dec': btn_dec, 'inc': btn_inc}
         return slider
 
-    def setup_controls(self):
+    def setup_controls(self) -> None:
+        """Sets up sliders, buttons, and checkboxes."""
         y_start = 0.02
         spacing = 0.03
 
+        # Sliders
         self.sl_z = self.create_slider('z', y_start, 'Z', 82, 120, 92, 1)
         self.sl_n = self.create_slider('n', y_start + spacing, 'N', 120, 180, 144, 1)
         self.sl_c = self.create_slider('c', y_start + 2 * spacing, 'c', 0.5, 3.0, 1.0, 0.01)
@@ -82,7 +104,7 @@ class FoSShapePlotter:
         self.sl_a4 = self.create_slider('a4', y_start + 4 * spacing, 'a4', -0.75, 0.75, 0.0, 0.01)
         self.sl_a5 = self.create_slider('a5', y_start + 5 * spacing, 'a5', -0.5, 0.5, 0.0, 0.01)
         self.sl_a6 = self.create_slider('a6', y_start + 6 * spacing, 'a6', -0.5, 0.5, 0.0, 0.01)
-        self.sl_max_beta = self.create_slider('mb', y_start + 7 * spacing, 'Max Beta', 1, 128, 12, 1)
+        self.sl_max_beta = self.create_slider('mb', y_start + 7 * spacing, 'Max Beta', 1, 256, 12, 1)
 
         # Checkboxes and Buttons
         self.chk_text = CheckButtons(plt.axes((0.82, 0.45, 0.08, 0.032)), ['Show Info'], [True])
@@ -91,15 +113,16 @@ class FoSShapePlotter:
         self.btn_save = Button(plt.axes((0.82, 0.32, 0.08, 0.032)), 'Save Plot')
         self.btn_print_beta = Button(plt.axes((0.82, 0.27, 0.08, 0.032)), 'Print Betas')
 
-    def setup_event_handlers(self):
+    def setup_event_handlers(self) -> None:
+        """Sets up event handlers for sliders and buttons."""
         sliders = [self.sl_z, self.sl_n, self.sl_c, self.sl_a3, self.sl_a4, self.sl_a5, self.sl_a6, self.sl_max_beta]
         for sl in sliders:
             sl.on_changed(self.update_plot)
 
         for name, items in self.slider_buttons.items():
-            s = items['slider']
-            items['dec'].on_clicked(lambda _, s=s: s.set_val(max(s.val - s.valstep, s.valmin)))
-            items['inc'].on_clicked(lambda _, s=s: s.set_val(min(s.val + s.valstep, s.valmax)))
+            slider = items['slider']
+            items['dec'].on_clicked(lambda _, s=slider: s.set_val(max(s.val - s.valstep, s.valmin)))
+            items['inc'].on_clicked(lambda _, s=slider: s.set_val(min(s.val + s.valstep, s.valmax)))
 
         self.chk_text.on_clicked(self.toggle_text)
         self.chk_beta.on_clicked(self.toggle_beta)
@@ -129,12 +152,12 @@ class FoSShapePlotter:
         self.update_plot(None)
 
     def save_plot(self, _):
-        fname = f"fos_shape_Z{int(self.sl_z.val)}_N{int(self.sl_n.val)}.png"
-        self.fig.savefig(fname, dpi=300, bbox_inches='tight')
-        print(f"Saved {fname}")
+        file_name = f"fos_shape_Z{int(self.sl_z.val)}_N{int(self.sl_n.val)}_c{self.sl_c.val:.2f}_a3{self.sl_a3.val:.2f}_a4{self.sl_a4.val:.2f}_a5{self.sl_a5.val:.2f}_a6{self.sl_a6.val:.2f}.png"
+        self.fig.savefig(file_name, dpi=300, bbox_inches='tight')
+        print(f"Saved {file_name}")
 
     def print_beta_parameters(self, _):
-        """Calculate and print beta parameters to command line."""
+        """Calculate and print beta parameters to the command line."""
         calc = FoSShapeCalculator(self.params)
         z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc)
 
@@ -144,7 +167,7 @@ class FoSShapePlotter:
         shift = 0.0
         if not conv.is_unambiguously_convertible(self.n_calc):
             direction = -1.0 if self.params.z_sh >= 0 else 1.0
-            max_shift = (np.max(z_fos_calc) - np.min(z_fos_calc)) / 2.0
+            max_shift = (float(np.max(z_fos_calc)) - float(np.min(z_fos_calc))) / 2.0
             while abs(shift) < max_shift:
                 shift += direction * 0.1
                 z_work = z_fos_calc + shift
@@ -170,10 +193,12 @@ class FoSShapePlotter:
                 print(f"beta_{l:2d} = {val:+.6f}")
             print("=" * 50 + "\n")
         else:
-            print("Shape not convertible to spherical coordinates.")
+            print("Shape is not convertible to spherical coordinates.")
 
     def update_plot(self, _: None) -> None:
-        if self.updating: return
+        """Updates the plot based on current slider values."""
+        if self.updating:
+            return
 
         # 1. Update Params
         self.params.protons = int(self.sl_z.val)
@@ -217,7 +242,7 @@ class FoSShapePlotter:
         shift = 0.0
         if not conv.is_unambiguously_convertible(self.n_calc):
             direction = -1.0 if self.params.z_sh >= 0 else 1.0
-            max_shift = (np.max(z_fos_calc) - np.min(z_fos_calc)) / 2.0
+            max_shift = (float(np.max(z_fos_calc)) - float(np.min(z_fos_calc))) / 2.0
             while abs(shift) < max_shift:
                 shift += direction * 0.1
                 z_work = z_fos_calc + shift
