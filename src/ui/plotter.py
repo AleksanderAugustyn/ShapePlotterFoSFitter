@@ -157,7 +157,7 @@ class FoSShapePlotter:
     def _make_decrement(slider: Slider) -> Callable[[Any], None]:
         def handler(_: Any) -> None:
             val: float = float(slider.val)
-            step: float = float(slider.valstep)
+            step: float = float(slider.valstep)  # type: ignore[arg-type]
             vmin: float = float(slider.valmin)
             slider.set_val(max(val - step, vmin))
 
@@ -167,7 +167,7 @@ class FoSShapePlotter:
     def _make_increment(slider: Slider) -> Callable[[Any], None]:
         def handler(_: Any) -> None:
             val: float = float(slider.val)
-            step: float = float(slider.valstep)
+            step: float = float(slider.valstep)  # type: ignore[arg-type]
             vmax: float = float(slider.valmax)
             slider.set_val(min(val + step, vmax))
 
@@ -208,7 +208,7 @@ class FoSShapePlotter:
             self.fig.canvas.draw_idle() if self.fig else None
         self.update_plot(None)
 
-    def _get_sphere_properties(self) -> tuple[float, float]:
+    def _get_sphere_properties(self) -> tuple[float | None, float | None]:
         """Return cached sphere volume/surface, recalculating only if Z or N changed."""
         if (self._cached_sphere_volume is None or
                 self._cached_Z != self.params.protons or
@@ -217,7 +217,10 @@ class FoSShapePlotter:
             self._cached_sphere_surface = self.params.sphere_surface_area
             self._cached_Z = self.params.protons
             self._cached_N = self.params.neutrons
-        return float(self._cached_sphere_volume), float(self._cached_sphere_surface)
+
+        volume = float(self._cached_sphere_volume) if self._cached_sphere_volume is not None else None
+        surface = float(self._cached_sphere_surface) if self._cached_sphere_surface is not None else None
+        return volume, surface
 
     def _fit_beta_iteratively(
             self,
