@@ -79,6 +79,9 @@ class FoSShapePlotter:
         # Beta fitting cache (for Print Betas button)
         self._last_beta_result: BetaFitResult | None = None
 
+        # Warning text for invalid shapes
+        self.warning_text = None
+
         self.create_figure()
         self.setup_controls()
         self.setup_event_handlers()
@@ -333,6 +336,25 @@ class FoSShapePlotter:
         # 2. Calculate FoS (HIGH PRECISION)
         calc = FoSShapeCalculator(self.params)
         z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc)
+
+        # The radius rho should strictly be > 0 everywhere except the endpoints.
+        # If we find 0 inside the array, it means f(u) <= 0 (invalid or scission).
+        # We slice [1:-1] to ignore the very tips.
+        is_physically_valid = not np.any(rho_fos_calc[1:-1] == 0)
+
+        if not is_physically_valid:
+            if self.warning_text is None:
+                self.warning_text = self.ax_plot.text(
+                    0.5, 0.5, "INVALID SHAPE\n(Volume Mismatch)",
+                    transform=self.ax_plot.transAxes,
+                    color='red', ha='center', va='center',
+                    fontsize=14, fontweight='bold',
+                    bbox=dict(facecolor='white', alpha=0.8, edgecolor='red')
+                )
+            self.warning_text.set_visible(True)
+        else:
+            if self.warning_text is not None:
+                self.warning_text.set_visible(False)
 
         # 3. Downsample for Plotting
         idx = np.linspace(0, self.n_calc - 1, self.n_plot, dtype=int)
