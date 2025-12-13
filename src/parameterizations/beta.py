@@ -62,15 +62,19 @@ class BetaDeformationCalculator:
             self._ylm_cache[l] = sph_harm_y(l, 0, self.theta, 0.0).real
         return self._ylm_cache[l]
 
-    def calculate_beta_parameters(self, l_max: int = 12) -> Dict[int, float]:
-        """Calculates analytical beta parameters using cached denominator."""
+    def calculate_beta_range(self, l_start: int, l_end: int) -> Dict[int, float]:
+        """Calculates analytical beta parameters for a specific range of l."""
         beta = {}
-        for l in range(1, l_max + 1):
+        for l in range(l_start, l_end + 1):
             # Numerator: ∫ Y_l0 R sin(θ) dθ
             numerator_integrand = self.r * self._get_ylm(l) * self.sin_theta
             numerator = simpson(numerator_integrand, x=self.theta)
             beta[l] = (np.sqrt(4 * np.pi) * numerator / self._denominator if abs(self._denominator) > 1e-10 else 0.0)
         return beta
+
+    def calculate_beta_parameters(self, l_max: int = 12) -> Dict[int, float]:
+        """Calculates analytical beta parameters using cached denominator."""
+        return self.calculate_beta_range(1, l_max)
 
     def reconstruct_shape(self, beta: Dict[int, float], n_theta: int = 720) -> Tuple[np.ndarray, np.ndarray]:
         """Reconstructs r(θ) from beta parameters with volume conservation."""
@@ -86,7 +90,12 @@ class BetaDeformationCalculator:
         vol_pre = float(simpson(vol_int, x=theta_recon))
         sphere_vol = (4 / 3) * np.pi * self.radius0 ** 3
 
-        scale_factor = (sphere_vol / vol_pre) ** (1 / 3)
+        # Protect against division by zero if the volume is extremely small
+        if vol_pre <= 1e-12:
+            scale_factor = 1.0
+        else:
+            scale_factor = (sphere_vol / vol_pre) ** (1 / 3)
+
         return theta_recon, scale_factor * r_pre
 
     @staticmethod
@@ -198,7 +207,10 @@ class IterativeBetaFitter:
         Returns:
             BetaFitResult containing fitted parameters and convergence info.
         """
-        l_max: int = self.batch_size
+        # Initialize calculator once to reuse cached values and sort logic
+        beta_calculator = BetaDeformationCalculator(theta, r_original, nucleons)
+
+        l_max: int = 0
         converged: bool = False
         beta_parameters: Dict[int, float] = {}
         theta_reconstructed: np.ndarray = np.array([])
@@ -212,14 +224,37 @@ class IterativeBetaFitter:
         surface_diff: float = float('inf')
 
         print("Beta fitting started...")
-        while l_max <= self.max_beta:
+        while l_max < self.max_beta:
+            # Determine batch range
+            l_start = l_max + 1
+            l_end = min(l_max + self.batch_size, self.max_beta)
+            l_max = l_end
+
             print(f"Current l_max = {l_max}")
 
-            beta_calculator = BetaDeformationCalculator(theta, r_original, nucleons)
-            beta_parameters = beta_calculator.calculate_beta_parameters(l_max)
+            # Calculate only new beta parameters for this batch
+            new_betas = beta_calculator.calculate_beta_range(l_start, l_end)
+
+            # Check for numerical instability (NaNs) in new parameters
+            if any(np.isnan(val) for val in new_betas.values()):
+                print(f"Numerical instability detected (NaN beta parameters) at l_range {l_start}-{l_end}. Stopping fit.")
+                break
+
+            # Tentatively update parameters
+            test_betas = beta_parameters.copy()
+            test_betas.update(new_betas)
+
             theta_reconstructed, r_reconstructed = beta_calculator.reconstruct_shape(
-                beta_parameters, n_points
+                test_betas, n_points
             )
+
+            # Check for NaNs in reconstruction
+            if np.isnan(r_reconstructed).any():
+                print(f"Numerical instability detected (NaN in reconstruction) at l_max={l_end}. Stopping fit.")
+                break
+
+            # If valid, commit changes
+            beta_parameters = test_betas
 
             errors = BetaDeformationCalculator.calculate_errors(
                 r_original, r_reconstructed, n_params=l_max
@@ -237,11 +272,6 @@ class IterativeBetaFitter:
                     surface_diff < self.surface_diff_threshold):
                 converged = True
                 break
-
-            if l_max >= self.max_beta:
-                break
-
-            l_max += self.batch_size
 
             print(f"RMSE: {rmse:.4f} fm, L-infinity: {l_inf:.4f} fm, Surface Diff: {surface_diff:.4f} fm²")
 
