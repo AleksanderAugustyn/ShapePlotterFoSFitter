@@ -7,6 +7,7 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
+from matplotlib.text import Text
 from matplotlib.widgets import Button, CheckButtons, Slider
 
 from src.parameterizations.beta import (
@@ -80,7 +81,7 @@ class FoSShapePlotter:
         self._last_beta_result: BetaFitResult | None = None
 
         # Warning text for invalid shapes
-        self.warning_text = None
+        self.warning_text: Text | None = None
 
         self.create_figure()
         self.setup_controls()
