@@ -30,7 +30,7 @@ class BetaFitResult:
 
 # Fitting constants
 BATCH_SIZE: Final[int] = 32  # Number of beta parameters to add per iteration
-MAX_BETA: Final[int] = 1024  # Maximum number of beta parameters for fitting
+MAX_BETA: Final[int] = 512  # Maximum number of beta parameters for fitting
 RMSE_THRESHOLD: Final[float] = 0.2  # RMSE convergence threshold in fm
 LINF_THRESHOLD: Final[float] = 0.5  # L-infinity convergence threshold in fm
 SURFACE_DIFF_THRESHOLD: Final[float] = 0.5  # Surface area difference threshold in fm^2
@@ -223,7 +223,6 @@ class IterativeBetaFitter:
         }
         surface_diff: float = float('inf')
 
-        print("Beta fitting started...")
         while l_max < self.max_beta:
             # Determine batch range
             l_start = l_max + 1

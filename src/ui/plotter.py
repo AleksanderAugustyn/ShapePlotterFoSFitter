@@ -133,7 +133,7 @@ class FoSShapePlotter:
         """
         ax_dec = plt.axes((0.20, y_pos, 0.016, 0.024))
         ax_sl = plt.axes((0.25, y_pos, 0.5, 0.024))
-        ax_inc = plt.axes((0.78, y_pos, 0.016, 0.024))
+        ax_inc = plt.axes((0.80, y_pos, 0.016, 0.024))
 
         slider = Slider(ax_sl, label, vmin, vmax, valinit=vinit, valstep=step)
         btn_dec = Button(ax_dec, '-')
@@ -359,6 +359,8 @@ class FoSShapePlotter:
 
         # Only convert to spherical and fit betas when Show Beta is enabled
         if self.show_beta_approx:
+            print(f"Calculating spherical conversion and fitting beta parameters for current shape: Z={self.params.protons}, N={self.params.neutrons}, c={self.params.c_elongation}, a3={self.params.get_coefficient(3)}, "
+                  f"a4={self.params.get_coefficient(4)}, a5={self.params.get_coefficient(5)}, a6={self.params.get_coefficient(6)}")
             # Find star-convex shift if needed
             conv, shift = CylindricalToSphericalConverter.find_star_convex_shift(
                 z_fos_calc, rho_fos_calc, self.params.z_sh, n_check=self.n_calc

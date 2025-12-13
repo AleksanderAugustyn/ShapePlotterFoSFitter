@@ -93,6 +93,47 @@ class CylindricalToSphericalConverter:
         test_values = z_check * rho_prime - rho_vals
         return not np.any(test_values > tolerance)
 
+    def _find_neck_z_position(self, n_samples: int = 720) -> Optional[float]:
+        """Find the z-coordinate of the neck center.
+
+        The neck is the minimum of ρ(z) between two local maxima (fragment tops).
+        For shapes with a pronounced neck (e.g., fissioning nuclei), this helps
+        center the coordinate system for better spherical conversion.
+
+        Args:
+            n_samples: Number of sample points for analysis.
+
+        Returns:
+            The z-coordinate of the neck center, or None if no clear neck structure is found.
+        """
+        z_samples = np.linspace(self.z_min, self.z_max, n_samples)
+        rho_samples = self.rho_interp(z_samples)
+
+        # Find local maxima (compare with neighbors)
+        maxima_mask = np.zeros(n_samples, dtype=bool)
+        for i in range(1, n_samples - 1):
+            if rho_samples[i] > rho_samples[i - 1] and rho_samples[i] > rho_samples[i + 1]:
+                maxima_mask[i] = True
+
+        maxima_indices = np.where(maxima_mask)[0]
+        if len(maxima_indices) < 2:
+            return None
+
+        # Get the two largest maxima by ρ value
+        maxima_rho_values = rho_samples[maxima_indices]
+        sorted_indices = np.argsort(maxima_rho_values)[::-1]  # descending
+        top_two = maxima_indices[sorted_indices[:2]]
+
+        # Ensure left < right for slicing
+        left_idx, right_idx = int(min(top_two)), int(max(top_two))
+
+        # Find minimum ρ between these two maxima
+        between_rho = rho_samples[left_idx:right_idx + 1]
+        min_local_idx = np.argmin(between_rho)
+        neck_idx = left_idx + min_local_idx
+
+        return float(z_samples[neck_idx])
+
     def calculate_round_trip_metrics(
             self,
             z_original: np.ndarray,
@@ -189,12 +230,16 @@ class CylindricalToSphericalConverter:
     ) -> Tuple['CylindricalToSphericalConverter', float]:
         """Find a z-shift that makes the shape star-convex (unambiguously convertible).
 
+        Uses intelligent neck-detection to find optimal shift. For shapes with a
+        pronounced neck (e.g., fissioning nuclei), centers the neck at the origin.
+        Falls back to incremental shifting if no neck structure is found.
+
         Args:
             z_points: Original z coordinates.
             rho_points: Original ρ(z) values.
             z_sh: The shape's center-of-mass z-shift (from FoS parameters).
             n_check: Number of points for convertibility check.
-            shift_step: Step size for shift search in fm.
+            shift_step: Step size for fallback shift search in fm.
 
         Returns:
             Tuple of (converter with shifted z, total shift applied).
@@ -205,7 +250,26 @@ class CylindricalToSphericalConverter:
         if conv.is_unambiguously_convertible(n_check):
             return conv, 0.0
 
-        # Search direction: opposite to center-of-mass shift
+        # Try neck-centered shifting first
+        z_neck = conv._find_neck_z_position(n_check)
+
+        if z_neck is not None:
+            # Try centering the neck at origin
+            shift = -z_neck
+            z_work = z_points + shift
+            conv = CylindricalToSphericalConverter(z_work, rho_points)
+            if conv.is_unambiguously_convertible(n_check):
+                return conv, shift
+
+            # Try adjustments around neck position
+            for delta in [0.05, -0.05, 0.1, -0.1, 0.15, -0.15, 0.2, -0.2]:
+                shift = -z_neck + delta
+                z_work = z_points + shift
+                conv = CylindricalToSphericalConverter(z_work, rho_points)
+                if conv.is_unambiguously_convertible(n_check):
+                    return conv, shift
+
+        # Fallback: incremental shifting
         direction = -1.0 if z_sh >= 0 else 1.0
         max_shift = (float(np.max(z_points)) - float(np.min(z_points))) / 2.0
         shift = 0.0
