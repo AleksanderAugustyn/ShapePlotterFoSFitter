@@ -1,5 +1,5 @@
 """FoS Shape Plotter with Beta Deformation Fitting UI."""
-from typing import Any, cast
+from typing import Any, Final
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -7,14 +7,21 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.widgets import Button, Slider, CheckButtons
+from matplotlib.widgets import Button, CheckButtons, Slider
 
-from src.parameterizations.beta import BetaDeformationCalculator
+from src.parameterizations.beta import BetaDeformationCalculator, ShapeComparisonMetrics
 from src.parameterizations.fos import FoSParameters, FoSShapeCalculator
 from src.utilities.converter import CylindricalToSphericalConverter
 
 # Set backend
 matplotlib.use('TkAgg')
+
+# Module-level constants
+BATCH_SIZE: Final[int] = 32  # Number of beta parameters to add per iteration
+MAX_BETA: Final[int] = 1024  # Maximum number of beta parameters for fitting
+RMSE_THRESHOLD: Final[float] = 0.2  # RMSE convergence threshold in fm
+LINF_THRESHOLD: Final[float] = 0.5  # L-infinity convergence threshold in fm
+SURFACE_DIFF_THRESHOLD: Final[float] = 0.5  # Surface area difference threshold in fm^2
 
 
 class FoSShapePlotter:
@@ -22,8 +29,8 @@ class FoSShapePlotter:
 
     def __init__(self) -> None:
         # --- CONFIGURATION ---
-        self.n_calc = 7200  # High precision for physics/fitting
-        self.n_plot = 360  # Sufficient for visual smoothness
+        self.n_calc: int = 7200  # High precision for physics/fitting
+        self.n_plot: int = 360  # Sufficient for visual smoothness
 
         # Default parameters
         self.params = FoSParameters()
@@ -129,10 +136,9 @@ class FoSShapePlotter:
                 sl.on_changed(self.update_plot)
 
         for name, items in self.slider_buttons.items():
-            # Use cast to help type checker identify specific widget types from the union
-            slider = cast(Slider, items['slider'])
-            btn_dec = cast(Button, items['dec'])
-            btn_inc = cast(Button, items['inc'])
+            slider = items['slider']
+            btn_dec = items['dec']
+            btn_inc = items['inc']
 
             # Button.on_clicked expects a callback.
             # Using default arg 's=slider' to capture the specific slider instance
@@ -159,7 +165,7 @@ class FoSShapePlotter:
             r_original: np.ndarray,
             fos_spherical_surface: float,
             nucleons: int
-    ) -> tuple[dict[int, float], int, np.ndarray, np.ndarray, dict[str, float], float, bool]:
+    ) -> tuple[dict[int, float], int, np.ndarray, np.ndarray, ShapeComparisonMetrics, float, bool]:
         """Iteratively fit beta parameters until convergence criteria are met.
 
         Args:
@@ -169,24 +175,28 @@ class FoSShapePlotter:
             nucleons: Number of nucleons (A).
 
         Returns:
-            Tuple of (betas, l_max, theta_rec, r_rec, errors, surface_diff, converged).
+            Tuple of (beta_parameters, l_max, theta_reconstructed, r_reconstructed, errors, surface_diff, converged).
         """
-        BATCH_SIZE = 32
-        MAX_L = 1024
-        RMSE_THRESHOLD = 0.2
-        LINF_THRESHOLD = 0.5
-        SURFACE_DIFF_THRESHOLD = 0.5
 
-        l_max = BATCH_SIZE
-        converged = False
+        l_max: int = BATCH_SIZE
+        converged: bool = False
+        beta_parameters: dict[int, float] = {}
+        theta_reconstructed: np.ndarray = np.array([])
+        r_reconstructed: np.ndarray = np.array([])
+        errors: ShapeComparisonMetrics = {
+            'rmse': float('inf'),
+            'chi_squared': float('inf'),
+            'chi_squared_reduced': float('inf'),
+            'l_infinity': float('inf'), }
+        surface_diff: float = np.inf
 
-        while l_max <= MAX_L:
-            beta_calc = BetaDeformationCalculator(theta, r_original, nucleons)
-            betas = beta_calc.calculate_beta_parameters(l_max)
-            theta_rec, r_rec = beta_calc.reconstruct_shape(betas, self.n_calc)
+        while l_max <= MAX_BETA:
+            beta_calculator = BetaDeformationCalculator(theta, r_original, nucleons)
+            beta_parameters = beta_calculator.calculate_beta_parameters(l_max)
+            theta_reconstructed, r_reconstructed = beta_calculator.reconstruct_shape(beta_parameters, self.n_calc)
 
-            errors = beta_calc.calculate_errors(r_original, r_rec, n_params=l_max)
-            beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_rec, r_rec)
+            errors = beta_calculator.calculate_errors(r_original, r_reconstructed, n_params=l_max)
+            beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_reconstructed, r_reconstructed)
             surface_diff = abs(beta_surface - fos_spherical_surface)
 
             rmse = errors['rmse']
@@ -196,12 +206,12 @@ class FoSShapePlotter:
                 converged = True
                 break
 
-            if l_max >= MAX_L:
+            if l_max >= MAX_BETA:
                 break
 
             l_max += BATCH_SIZE
 
-        return betas, l_max, theta_rec, r_rec, errors, surface_diff, converged
+        return beta_parameters, l_max, theta_reconstructed, r_reconstructed, errors, surface_diff, converged
 
     def reset_values(self, _: Any) -> None:
         if self.sl_z is None or self.sl_n is None or self.sl_c is None:
@@ -317,9 +327,8 @@ class FoSShapePlotter:
         fos_surface = FoSShapeCalculator.calculate_surface_area(z_fos_calc, rho_fos_calc)
 
         # Spherical conversion for volume/surface calculation
-        spherical_text = ""
-        beta_fit_text = ""
-        metrics_text = ""
+        beta_fit_text: str = ""
+        metrics_text: str = ""
 
         # Always try to convert to spherical for volume/surface calculation
         z_work = z_fos_calc.copy()
@@ -342,7 +351,7 @@ class FoSShapePlotter:
             # Calculate spherical volume/surface
             sph_volume = BetaDeformationCalculator.calculate_volume_spherical(theta_calc, r_fos_sph_calc)
             sph_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_calc, r_fos_sph_calc)
-            spherical_text = (f"FoS Shape (spherical):\n"
+            spherical_text: str = (f"FoS Shape (spherical):\n"
                               f"  Volume:  {sph_volume:.2f} fm^3\n"
                               f"  Surface: {sph_surface:.2f} fm^2\n\n")
 
