@@ -429,6 +429,12 @@ class FoSShapePlotter:
                 sort_idx = np.argsort(z_roundtrip)
                 z_rt_sorted = z_roundtrip[sort_idx]
                 rho_rt_sorted = rho_roundtrip[sort_idx]
+
+                # Remove duplicates for interpolation
+                unique_mask = np.concatenate(([True], np.diff(z_rt_sorted) > 1e-12))
+                z_rt_sorted = z_rt_sorted[unique_mask]
+                rho_rt_sorted = rho_rt_sorted[unique_mask]
+
                 rho_interp = interp1d(z_rt_sorted, rho_rt_sorted, kind='cubic', fill_value='extrapolate')
                 rho_rt_at_z = rho_interp(z_fos_calc)
 
