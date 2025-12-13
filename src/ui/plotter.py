@@ -49,7 +49,6 @@ class FoSShapePlotter:
         self.sl_a4: Slider | None = None
         self.sl_a5: Slider | None = None
         self.sl_a6: Slider | None = None
-        self.sl_max_beta: Slider | None = None
         # Checkboxes and Buttons
         self.chk_text: CheckButtons | None = None
         self.chk_beta: CheckButtons | None = None
@@ -112,7 +111,6 @@ class FoSShapePlotter:
         self.sl_a4 = self.create_slider('a4', y_start + 4 * spacing, 'a4', -0.75, 0.75, 0.0, 0.01)
         self.sl_a5 = self.create_slider('a5', y_start + 5 * spacing, 'a5', -0.5, 0.5, 0.0, 0.01)
         self.sl_a6 = self.create_slider('a6', y_start + 6 * spacing, 'a6', -0.5, 0.5, 0.0, 0.01)
-        self.sl_max_beta = self.create_slider('mb', y_start + 7 * spacing, 'Max Beta', 1, 256, 12, 1)
 
         # Checkboxes and Buttons
         self.chk_text = CheckButtons(plt.axes((0.82, 0.45, 0.08, 0.032)), ['Show Info'], [True])
@@ -125,7 +123,7 @@ class FoSShapePlotter:
         """Sets up event handlers for sliders and buttons."""
         if self.sl_z is None: return
 
-        sliders = [self.sl_z, self.sl_n, self.sl_c, self.sl_a3, self.sl_a4, self.sl_a5, self.sl_a6, self.sl_max_beta]
+        sliders = [self.sl_z, self.sl_n, self.sl_c, self.sl_a3, self.sl_a4, self.sl_a5, self.sl_a6]
         for sl in sliders:
             if sl is not None:
                 sl.on_changed(self.update_plot)
@@ -155,6 +153,56 @@ class FoSShapePlotter:
         self.show_beta_approx = not self.show_beta_approx
         self.update_plot(None)
 
+    def _fit_beta_iteratively(
+            self,
+            theta: np.ndarray,
+            r_original: np.ndarray,
+            fos_spherical_surface: float,
+            nucleons: int
+    ) -> tuple[dict[int, float], int, np.ndarray, np.ndarray, dict[str, float], float, bool]:
+        """Iteratively fit beta parameters until convergence criteria are met.
+
+        Args:
+            theta: Theta values for the original shape.
+            r_original: r(theta) values for the original FoS shape.
+            fos_spherical_surface: Surface area of FoS shape in spherical coordinates.
+            nucleons: Number of nucleons (A).
+
+        Returns:
+            Tuple of (betas, l_max, theta_rec, r_rec, errors, surface_diff, converged).
+        """
+        BATCH_SIZE = 16
+        MAX_L = 1024
+        RMSE_THRESHOLD = 0.2
+        LINF_THRESHOLD = 0.5
+        SURFACE_DIFF_THRESHOLD = 2.0
+
+        l_max = BATCH_SIZE
+        converged = False
+
+        while l_max <= MAX_L:
+            beta_calc = BetaDeformationCalculator(theta, r_original, nucleons)
+            betas = beta_calc.calculate_beta_parameters(l_max)
+            theta_rec, r_rec = beta_calc.reconstruct_shape(betas, self.n_calc)
+
+            errors = beta_calc.calculate_errors(r_original, r_rec, n_params=l_max)
+            beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_rec, r_rec)
+            surface_diff = abs(beta_surface - fos_spherical_surface)
+
+            rmse = errors['rmse']
+            l_inf = errors['l_infinity']
+
+            if rmse < RMSE_THRESHOLD and l_inf < LINF_THRESHOLD and surface_diff < SURFACE_DIFF_THRESHOLD:
+                converged = True
+                break
+
+            if l_max >= MAX_L:
+                break
+
+            l_max += BATCH_SIZE
+
+        return betas, l_max, theta_rec, r_rec, errors, surface_diff, converged
+
     def reset_values(self, _: Any) -> None:
         if self.sl_z is None or self.sl_n is None or self.sl_c is None:
             return
@@ -168,7 +216,6 @@ class FoSShapePlotter:
         if self.sl_a4: self.sl_a4.set_val(0.0)
         if self.sl_a5: self.sl_a5.set_val(0.0)
         if self.sl_a6: self.sl_a6.set_val(0.0)
-        if self.sl_max_beta: self.sl_max_beta.set_val(12)
         self.updating = False
         self.update_plot(None)
 
@@ -181,9 +228,7 @@ class FoSShapePlotter:
         print(f"Saved {file_name}")
 
     def print_beta_parameters(self, _: Any) -> None:
-        """Calculate and print beta parameters to the command line."""
-        if self.sl_max_beta is None: return
-
+        """Calculate and print beta parameters to the command line using iterative fitting."""
         calc = FoSShapeCalculator(self.params)
         z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc)
 
@@ -203,17 +248,25 @@ class FoSShapePlotter:
 
         if conv.is_unambiguously_convertible(self.n_calc):
             theta_calc, r_fos_sph_calc = conv.convert_to_spherical(self.n_calc)
-            beta_calc = BetaDeformationCalculator(theta_calc, r_fos_sph_calc, self.params.nucleons)
-            l_max = int(self.sl_max_beta.val)
-            betas = beta_calc.calculate_beta_parameters(l_max)
+            sph_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_calc, r_fos_sph_calc)
 
+            # Use iterative fitting
+            betas, l_max, _, _, errors, surface_diff, converged = \
+                self._fit_beta_iteratively(theta_calc, r_fos_sph_calc, sph_surface, self.params.nucleons)
+
+            status = "Converged" if converged else "Max l reached"
             print("\n" + "=" * 50)
-            print("Fitted Beta Parameters")
+            print(f"Fitted Beta Parameters ({status})")
             print("=" * 50)
             print(f"Z={self.params.protons}, N={self.params.neutrons}, A={self.params.nucleons}")
             print(f"FoS: c={self.params.c_elongation:.4f}, a3={self.params.get_coefficient(3):.4f}, "
                   f"a4={self.params.get_coefficient(4):.4f}, a5={self.params.get_coefficient(5):.4f}, "
                   f"a6={self.params.get_coefficient(6):.4f}")
+            print("-" * 50)
+            print(f"l_max:     {l_max}")
+            print(f"RMSE:      {errors['rmse']:.4f} fm")
+            print(f"L_inf:     {errors['l_infinity']:.4f} fm")
+            print(f"Surface Δ: {surface_diff:.4f} fm^2")
             print("-" * 50)
             for l, val in sorted(betas.items()):
                 print(f"beta_{l:2d} = {val:+.6f}")
@@ -229,7 +282,7 @@ class FoSShapePlotter:
         # Ensure critical attributes are initialized
         if (self.sl_z is None or self.sl_n is None or self.sl_c is None or
                 self.sl_a3 is None or self.sl_a4 is None or self.sl_a5 is None or
-                self.sl_a6 is None or self.sl_max_beta is None or
+                self.sl_a6 is None or
                 self.ax_plot is None or self.ax_text is None or self.fig is None):
             return
 
@@ -294,28 +347,26 @@ class FoSShapePlotter:
                               f"  Surface: {sph_surface:.2f} fm^2\n\n")
 
             if self.show_beta_approx:
-                # Beta Calculation (HIGH PRECISION)
-                beta_calc = BetaDeformationCalculator(theta_calc, r_fos_sph_calc, self.params.nucleons)
-                l_max = int(self.sl_max_beta.val)
-                betas = beta_calc.calculate_beta_parameters(l_max)
-
-                # Reconstruct for Error Metrics (HIGH PRECISION)
-                theta_rec_calc, r_rec_calc = beta_calc.reconstruct_shape(betas, self.n_calc)
+                # Iterative Beta Fitting (adds betas in batches of 16 until convergence)
+                betas, l_max, theta_rec_calc, r_rec_calc, errors, surface_diff, converged = \
+                    self._fit_beta_iteratively(theta_calc, r_fos_sph_calc, sph_surface, self.params.nucleons)
 
                 # Calculate beta fit volume/surface
                 beta_volume = BetaDeformationCalculator.calculate_volume_spherical(theta_rec_calc, r_rec_calc)
                 beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_rec_calc, r_rec_calc)
-                beta_fit_text = (f"Beta Fit Shape:\n"
+                beta_fit_text = (f"Beta Fit Shape (l_max={l_max}):\n"
                                  f"  Volume:  {beta_volume:.2f} fm^3\n"
                                  f"  Surface: {beta_surface:.2f} fm^2\n\n")
 
-                # Pass n_params (l_max) to calculate Reduced Chi-Squared
-                errors = beta_calc.calculate_errors(r_fos_sph_calc, r_rec_calc, n_params=l_max)
-                metrics_text = (f"Fit Metrics (N={self.n_calc}):\n"
+                # Build metrics text with convergence status
+                status = "Converged" if converged else "Max l reached"
+                metrics_text = (f"Fit Metrics (N={self.n_calc}, {status}):\n"
+                                f"  l_max:       {l_max}\n"
                                 f"  RMSE:        {errors['rmse']:.4f} fm\n"
                                 f"  Chi^2:       {errors['chi_squared']:.4f}\n"
                                 f"  Chi^2 (Red): {errors['chi_squared_reduced']:.6f}\n"
-                                f"  L_inf:       {errors['l_infinity']:.4f} fm")
+                                f"  L_inf:       {errors['l_infinity']:.4f} fm\n"
+                                f"  Surface Δ:   {surface_diff:.4f} fm^2")
 
                 # Reconstruct for Plotting (LOW PRECISION via Downsampling)
                 theta_plot = theta_rec_calc[idx]
