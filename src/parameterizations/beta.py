@@ -1,6 +1,6 @@
 """Beta deformation parameterization and shape error calculations."""
 from dataclasses import dataclass
-from typing import Dict, Final, Tuple, TypedDict
+from typing import Callable, Dict, Final, Optional, Tuple, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
@@ -51,6 +51,11 @@ class BetaDeformationCalculator:
         self.sin_theta = np.sin(self.theta)
         self._ylm_cache: Dict[int, NDArray[np.float64]] = {}
 
+        # Cache the denominator (constant for a given shape)
+        # Denominator: ∫ Y_00 R sin(θ) dθ
+        denominator_integrand = self.r * self._get_ylm(0) * self.sin_theta
+        self._denominator: float = float(simpson(denominator_integrand, x=self.theta))
+
     def _get_ylm(self, l: int) -> NDArray[np.float64]:
         """Get cached Y_l0(θ) values."""
         if l not in self._ylm_cache:
@@ -58,16 +63,13 @@ class BetaDeformationCalculator:
         return self._ylm_cache[l]
 
     def calculate_beta_parameters(self, l_max: int = 12) -> Dict[int, float]:
-        """Calculates analytical beta parameters."""
+        """Calculates analytical beta parameters using cached denominator."""
         beta = {}
-        # Denominator: ∫ Y_00 sin(θ) dθ (Always constant for l=0)
-        denominator_integrand = self.r * self._get_ylm(0) * self.sin_theta
-        denominator = simpson(denominator_integrand, x=self.theta)
-
         for l in range(1, l_max + 1):
-            num_integrand = self.r * self._get_ylm(l) * self.sin_theta
-            numerator = simpson(num_integrand, x=self.theta)
-            beta[l] = np.sqrt(4 * np.pi) * numerator / denominator if abs(denominator) > 1e-10 else 0.0
+            # Numerator: ∫ Y_l0 R sin(θ) dθ
+            numerator_integrand = self.r * self._get_ylm(l) * self.sin_theta
+            numerator = simpson(numerator_integrand, x=self.theta)
+            beta[l] = (np.sqrt(4 * np.pi) * numerator / self._denominator if abs(self._denominator) > 1e-10 else 0.0)
         return beta
 
     def reconstruct_shape(self, beta: Dict[int, float], n_theta: int = 720) -> Tuple[np.ndarray, np.ndarray]:
@@ -180,7 +182,8 @@ class IterativeBetaFitter:
             r_original: np.ndarray,
             reference_surface: float,
             nucleons: int,
-            n_points: int = 7200
+            n_points: int = 7200,
+            progress_callback: Optional[Callable[[], None]] = None
     ) -> BetaFitResult:
         """Iteratively fit beta parameters until convergence criteria are met.
 
@@ -190,6 +193,7 @@ class IterativeBetaFitter:
             reference_surface: Reference surface area for convergence check.
             nucleons: Number of nucleons (A).
             n_points: Number of points for shape reconstruction.
+            progress_callback: Optional callback to invoke after each iteration (e.g., for UI event processing).
 
         Returns:
             BetaFitResult containing fitted parameters and convergence info.
@@ -207,7 +211,10 @@ class IterativeBetaFitter:
         }
         surface_diff: float = float('inf')
 
+        print("Beta fitting started...")
         while l_max <= self.max_beta:
+            print(f"Current l_max = {l_max}")
+
             beta_calculator = BetaDeformationCalculator(theta, r_original, nucleons)
             beta_parameters = beta_calculator.calculate_beta_parameters(l_max)
             theta_reconstructed, r_reconstructed = beta_calculator.reconstruct_shape(
@@ -235,6 +242,15 @@ class IterativeBetaFitter:
                 break
 
             l_max += self.batch_size
+
+            print(f"RMSE: {rmse:.4f} fm, L-infinity: {l_inf:.4f} fm, Surface Diff: {surface_diff:.4f} fm²")
+
+            # Allow UI to process events between iterations
+            if progress_callback is not None:
+                progress_callback()
+
+        status = "converged" if converged else f"reached max l_max={l_max}"
+        print(f"Beta fitting completed: {status}")
 
         return BetaFitResult(
             beta_parameters=beta_parameters,

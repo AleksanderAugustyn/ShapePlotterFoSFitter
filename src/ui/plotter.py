@@ -115,7 +115,22 @@ class FoSShapePlotter:
 
         self.ax_plot.legend(loc='upper right')
 
-    def create_slider(self, name: str, y_pos: float, label: str, vmin: float, vmax: float, vinit: float, step: float) -> Slider:
+    def create_slider(self, name: str, y_pos: float, label: str,
+                      vmin: float, vmax: float, vinit: float, step: float,
+                      markers: list[float] | None = None) -> Slider:
+        """
+        Creates a slider with decrement/increment buttons and optional limit markers.
+        
+        Args:
+            name: ID for the slider.
+            y_pos: Vertical position on the figure.
+            label: Text label.
+            vmin: Minimum value.
+            vmax: Maximum value.
+            vinit: Initial value.
+            step: Step size.
+            markers: List of values to draw vertical red dotted lines at (practical limits).
+        """
         ax_dec = plt.axes((0.20, y_pos, 0.016, 0.024))
         ax_sl = plt.axes((0.25, y_pos, 0.5, 0.024))
         ax_inc = plt.axes((0.78, y_pos, 0.016, 0.024))
@@ -123,6 +138,14 @@ class FoSShapePlotter:
         slider = Slider(ax_sl, label, vmin, vmax, valinit=vinit, valstep=step)
         btn_dec = Button(ax_dec, '-')
         btn_inc = Button(ax_inc, '+')
+
+        # --- Visual Indicators ---
+        # 1. Permanent mark for the initial value (reset point) - Thin Grey
+        slider.ax.vlines(vinit, 0, 1, color='k', linestyle='-', alpha=0.3, linewidth=1)
+
+        # 2. Markers for practical limits - Red Dotted
+        if markers:
+            slider.ax.vlines(markers, 0, 1, color='r', linestyle=':', alpha=0.7, linewidth=1.5)
 
         self.slider_buttons[name] = {'slider': slider, 'dec': btn_dec, 'inc': btn_inc}
         return slider
@@ -133,17 +156,19 @@ class FoSShapePlotter:
         spacing = 0.03
 
         # Sliders
+        # Note: 'markers' argument adds the red dotted lines for practical limits
+
         self.sl_z = self.create_slider('z', y_start, 'Z', 82, 120, 92, 1)
         self.sl_n = self.create_slider('n', y_start + spacing, 'N', 120, 180, 144, 1)
-        self.sl_c = self.create_slider('c', y_start + 2 * spacing, 'c', 0.5, 3.0, 1.0, 0.01)
-        self.sl_a3 = self.create_slider('a3', y_start + 3 * spacing, 'a3', -0.6, 0.6, 0.0, 0.01)
-        self.sl_a4 = self.create_slider('a4', y_start + 4 * spacing, 'a4', -0.75, 0.75, 0.0, 0.01)
-        self.sl_a5 = self.create_slider('a5', y_start + 5 * spacing, 'a5', -0.5, 0.5, 0.0, 0.01)
-        self.sl_a6 = self.create_slider('a6', y_start + 6 * spacing, 'a6', -0.5, 0.5, 0.0, 0.01)
+        self.sl_c = self.create_slider('c', y_start + 2 * spacing, 'c', 0.5, 3.5, 1.0, 0.01, markers=[1.0, 3.0])
+        self.sl_a3 = self.create_slider('a3', y_start + 3 * spacing, 'a3', -0.6, 0.6, 0.0, 0.01, markers=[0.0, 0.5])
+        self.sl_a4 = self.create_slider('a4', y_start + 4 * spacing, 'a4', -0.75, 0.75, 0.0, 0.01, markers=[-0.2, 0.72])
+        self.sl_a5 = self.create_slider('a5', y_start + 5 * spacing, 'a5', -0.5, 0.5, 0.0, 0.01, markers=[-0.2, 0.2])
+        self.sl_a6 = self.create_slider('a6', y_start + 6 * spacing, 'a6', -0.5, 0.5, 0.0, 0.01, markers=[-0.2, 0.2])
 
         # Checkboxes and Buttons
         self.chk_text = CheckButtons(plt.axes((0.82, 0.45, 0.08, 0.032)), ['Show Info'], [True])
-        self.chk_beta = CheckButtons(plt.axes((0.82, 0.42, 0.08, 0.032)), ['Show Beta'], [False])
+        self.chk_beta = CheckButtons(plt.axes((0.82, 0.42, 0.08, 0.032)), ['Fit Beta'], [False])
         self.btn_reset = Button(plt.axes((0.82, 0.37, 0.08, 0.032)), 'Reset')
         self.btn_save = Button(plt.axes((0.82, 0.32, 0.08, 0.032)), 'Save Plot')
         self.btn_print_beta = Button(plt.axes((0.82, 0.27, 0.08, 0.032)), 'Print Betas')
@@ -368,8 +393,14 @@ class FoSShapePlotter:
                                            f"  Z-shift:   {conv_metrics['z_shift']:.2f} fm\n\n")
 
                 # Iterative Beta Fitting using the dedicated fitter class
+                # Pass a callback to flush UI events and prevent "Not Responding"
+                def flush_events() -> None:
+                    if self.fig is not None:
+                        self.fig.canvas.flush_events()
+
                 fit_result = self.beta_fitter.fit(
-                    theta_calc, r_fos_sph_calc, sph_surface, self.params.nucleons, self.n_calc
+                    theta_calc, r_fos_sph_calc, sph_surface, self.params.nucleons, self.n_calc,
+                    progress_callback=flush_events
                 )
 
                 # Cache beta fitting results for the Print Betas button

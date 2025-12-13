@@ -128,8 +128,9 @@ class CylindricalToSphericalConverter:
         rho_rt_sorted = rho_rt_sorted[unique_mask]
 
         # Interpolate roundtrip rho at original z points
+        # Use fill_value=0.0 since rho should be 0 at the tips (beyond the roundtrip z range)
         rho_interp_func = interp1d(
-            z_rt_sorted, rho_rt_sorted, kind='cubic', fill_value='extrapolate'
+            z_rt_sorted, rho_rt_sorted, kind='cubic', bounds_error=False, fill_value=0.0
         )
         rho_rt_at_z = rho_interp_func(z_original)
 
