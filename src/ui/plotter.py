@@ -1,5 +1,5 @@
 """FoS Shape Plotter with Beta Deformation Fitting UI."""
-from typing import Any, Callable, Final, TypedDict
+from typing import Any, Callable, TypedDict
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -8,21 +8,17 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.widgets import Button, CheckButtons, Slider
-from scipy.interpolate import interp1d
 
-from src.parameterizations.beta import BetaDeformationCalculator, ShapeComparisonMetrics
+from src.parameterizations.beta import (
+    BetaDeformationCalculator,
+    BetaFitResult,
+    IterativeBetaFitter,
+)
 from src.parameterizations.fos import FoSParameters, FoSShapeCalculator
 from src.utilities.converter import CylindricalToSphericalConverter
 
 # Set backend
 matplotlib.use('TkAgg')
-
-# Module-level constants
-BATCH_SIZE: Final[int] = 32  # Number of beta parameters to add per iteration
-MAX_BETA: Final[int] = 1024  # Maximum number of beta parameters for fitting
-RMSE_THRESHOLD: Final[float] = 0.2  # RMSE convergence threshold in fm
-LINF_THRESHOLD: Final[float] = 0.5  # L-infinity convergence threshold in fm
-SURFACE_DIFF_THRESHOLD: Final[float] = 0.5  # Surface area difference threshold in fm^2
 
 
 class SliderControls(TypedDict):
@@ -42,6 +38,9 @@ class FoSShapePlotter:
 
         # Default parameters
         self.params = FoSParameters()
+
+        # Beta fitter instance
+        self.beta_fitter = IterativeBetaFitter()
 
         # UI State
         self.show_text_info = True
@@ -78,11 +77,7 @@ class FoSShapePlotter:
         self._cached_N: int = self.params.neutrons
 
         # Beta fitting cache (for Print Betas button)
-        self._last_beta_params: dict[int, float] | None = None
-        self._last_l_max: int | None = None
-        self._last_errors: ShapeComparisonMetrics | None = None
-        self._last_surface_diff: float | None = None
-        self._last_converged: bool = False
+        self._last_beta_result: BetaFitResult | None = None
 
         self.create_figure()
         self.setup_controls()
@@ -222,60 +217,6 @@ class FoSShapePlotter:
         surface = float(self._cached_sphere_surface) if self._cached_sphere_surface is not None else None
         return volume, surface
 
-    def _fit_beta_iteratively(
-            self,
-            theta: np.ndarray,
-            r_original: np.ndarray,
-            fos_spherical_surface: float,
-            nucleons: int
-    ) -> tuple[dict[int, float], int, np.ndarray, np.ndarray, ShapeComparisonMetrics, float, bool]:
-        """Iteratively fit beta parameters until convergence criteria are met.
-
-        Args:
-            theta: Theta values for the original shape.
-            r_original: r(theta) values for the original FoS shape.
-            fos_spherical_surface: Surface area of FoS shape in spherical coordinates.
-            nucleons: Number of nucleons (A).
-
-        Returns:
-            Tuple of (beta_parameters, l_max, theta_reconstructed, r_reconstructed, errors, surface_diff, converged).
-        """
-
-        l_max: int = BATCH_SIZE
-        converged: bool = False
-        beta_parameters: dict[int, float] = {}
-        theta_reconstructed: np.ndarray = np.array([])
-        r_reconstructed: np.ndarray = np.array([])
-        errors: ShapeComparisonMetrics = {
-            'rmse': float('inf'),
-            'chi_squared': float('inf'),
-            'chi_squared_reduced': float('inf'),
-            'l_infinity': float('inf'), }
-        surface_diff: float = np.inf
-
-        while l_max <= MAX_BETA:
-            beta_calculator = BetaDeformationCalculator(theta, r_original, nucleons)
-            beta_parameters = beta_calculator.calculate_beta_parameters(l_max)
-            theta_reconstructed, r_reconstructed = beta_calculator.reconstruct_shape(beta_parameters, self.n_calc)
-
-            errors = beta_calculator.calculate_errors(r_original, r_reconstructed, n_params=l_max)
-            beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_reconstructed, r_reconstructed)
-            surface_diff = abs(beta_surface - fos_spherical_surface)
-
-            rmse = errors['rmse']
-            l_inf = errors['l_infinity']
-
-            if rmse < RMSE_THRESHOLD and l_inf < LINF_THRESHOLD and surface_diff < SURFACE_DIFF_THRESHOLD:
-                converged = True
-                break
-
-            if l_max >= MAX_BETA:
-                break
-
-            l_max += BATCH_SIZE
-
-        return beta_parameters, l_max, theta_reconstructed, r_reconstructed, errors, surface_diff, converged
-
     def reset_values(self, _: Any) -> None:
         if self.sl_z is None or self.sl_n is None or self.sl_c is None:
             return
@@ -311,16 +252,17 @@ class FoSShapePlotter:
             print("Enable 'Show Beta' first to calculate beta parameters.")
             return
 
-        if self._last_beta_params is None:
+        if self._last_beta_result is None:
             print("No beta parameters available. Shape may not be convertible to spherical coordinates.")
             return
 
-        # Read from cached values
-        betas = self._last_beta_params
-        l_max = self._last_l_max
-        errors = self._last_errors
-        surface_diff = self._last_surface_diff
-        converged = self._last_converged
+        # Read from the cached result
+        result = self._last_beta_result
+        betas = result.beta_parameters
+        l_max = result.l_max
+        errors = result.errors
+        surface_diff = result.surface_diff
+        converged = result.converged
 
         status = "Converged" if converged else "Max l reached"
         print("\n" + "=" * 50)
@@ -392,19 +334,10 @@ class FoSShapePlotter:
 
         # Only convert to spherical and fit betas when Show Beta is enabled
         if self.show_beta_approx:
-            z_work = z_fos_calc.copy()
-            conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
-
-            shift = 0.0
-            if not conv.is_unambiguously_convertible(self.n_calc):
-                direction = -1.0 if self.params.z_sh >= 0 else 1.0
-                max_shift = (float(np.max(z_fos_calc)) - float(np.min(z_fos_calc))) / 2.0
-                while abs(shift) < max_shift:
-                    shift += direction * 0.1
-                    z_work = z_fos_calc + shift
-                    conv = CylindricalToSphericalConverter(z_work, rho_fos_calc)
-                    if conv.is_unambiguously_convertible(self.n_calc):
-                        break
+            # Find star-convex shift if needed
+            conv, shift = CylindricalToSphericalConverter.find_star_convex_shift(
+                z_fos_calc, rho_fos_calc, self.params.z_sh, n_check=self.n_calc
+            )
 
             if conv.is_unambiguously_convertible(self.n_calc):
                 theta_calc, r_fos_sph_calc = conv.convert_to_spherical(self.n_calc)
@@ -424,68 +357,48 @@ class FoSShapePlotter:
                 self.lines['fos_sph'].set_data(z_sph, rho_sph)
                 self.lines['fos_sph_m'].set_data(z_sph, -rho_sph)
 
-                # Calculate conversion metrics (cylindrical → spherical round-trip)
-                z_roundtrip = r_fos_sph_calc * np.cos(theta_calc) - shift
-                rho_roundtrip = r_fos_sph_calc * np.sin(theta_calc)
-
-                # Interpolate roundtrip rho at original z points for comparison
-                sort_idx = np.argsort(z_roundtrip)
-                z_rt_sorted = z_roundtrip[sort_idx]
-                rho_rt_sorted = rho_roundtrip[sort_idx]
-
-                # Remove duplicates for interpolation
-                unique_mask = np.concatenate(([True], np.diff(z_rt_sorted) > 1e-12))
-                z_rt_sorted = z_rt_sorted[unique_mask]
-                rho_rt_sorted = rho_rt_sorted[unique_mask]
-
-                rho_interp = interp1d(z_rt_sorted, rho_rt_sorted, kind='cubic', fill_value='extrapolate')
-                rho_rt_at_z = rho_interp(z_fos_calc)
-
-                # Calculate conversion metrics
-                conv_diff = rho_fos_calc - rho_rt_at_z
-                conv_rmse = float(np.sqrt(np.mean(conv_diff ** 2)))
-                conv_linf = float(np.max(np.abs(conv_diff)))
-                conv_volume_diff = abs(sph_volume - fos_volume)
-                conv_surface_diff = abs(sph_surface - fos_surface)
+                # Calculate conversion metrics using the new method
+                conv_metrics = conv.calculate_round_trip_metrics(z_fos_calc, rho_fos_calc, shift)
 
                 conversion_metrics_text = (f"Conversion Metrics (Cyl→Sph):\n"
-                                           f"  RMSE:      {conv_rmse:.4f} fm\n"
-                                           f"  L_inf:     {conv_linf:.4f} fm\n"
-                                           f"  Volume Δ:  {conv_volume_diff:.4f} fm^3\n"
-                                           f"  Surface Δ: {conv_surface_diff:.4f} fm^2\n"
-                                           f"  Z-shift:   {shift:.2f} fm\n\n")
+                                           f"  RMSE:      {conv_metrics['rmse']:.4f} fm\n"
+                                           f"  L_inf:     {conv_metrics['l_infinity']:.4f} fm\n"
+                                           f"  Volume Δ:  {conv_metrics['volume_diff']:.4f} fm^3\n"
+                                           f"  Surface Δ: {conv_metrics['surface_diff']:.4f} fm^2\n"
+                                           f"  Z-shift:   {conv_metrics['z_shift']:.2f} fm\n\n")
 
-                # Iterative Beta Fitting
-                betas, l_max, theta_rec_calc, r_rec_calc, errors, surface_diff, converged = \
-                    self._fit_beta_iteratively(theta_calc, r_fos_sph_calc, sph_surface, self.params.nucleons)
+                # Iterative Beta Fitting using the dedicated fitter class
+                fit_result = self.beta_fitter.fit(
+                    theta_calc, r_fos_sph_calc, sph_surface, self.params.nucleons, self.n_calc
+                )
 
                 # Cache beta fitting results for the Print Betas button
-                self._last_beta_params = betas
-                self._last_l_max = l_max
-                self._last_errors = errors
-                self._last_surface_diff = surface_diff
-                self._last_converged = converged
+                self._last_beta_result = fit_result
 
                 # Calculate beta fit volume/surface
-                beta_volume = BetaDeformationCalculator.calculate_volume_spherical(theta_rec_calc, r_rec_calc)
-                beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_rec_calc, r_rec_calc)
-                beta_fit_text = (f"Beta Fit Shape (l_max={l_max}):\n"
+                beta_volume = BetaDeformationCalculator.calculate_volume_spherical(
+                    fit_result.theta_reconstructed, fit_result.r_reconstructed
+                )
+                beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(
+                    fit_result.theta_reconstructed, fit_result.r_reconstructed
+                )
+                beta_fit_text = (f"Beta Fit Shape (l_max={fit_result.l_max}):\n"
                                  f"  Volume:  {beta_volume:.2f} fm^3\n"
                                  f"  Surface: {beta_surface:.2f} fm^2\n\n")
 
                 # Build metrics text with convergence status
-                status = "Converged" if converged else "Max l reached"
+                status = "Converged" if fit_result.converged else "Max l reached"
                 metrics_text = (f"Beta Fit Metrics (N={self.n_calc}, {status}):\n"
-                                f"  l_max:       {l_max}\n"
-                                f"  RMSE:        {errors['rmse']:.4f} fm\n"
-                                f"  Chi^2:       {errors['chi_squared']:.4f}\n"
-                                f"  Chi^2 (Red): {errors['chi_squared_reduced']:.6f}\n"
-                                f"  L_inf:       {errors['l_infinity']:.4f} fm\n"
-                                f"  Surface Δ:   {surface_diff:.4f} fm^2")
+                                f"  l_max:       {fit_result.l_max}\n"
+                                f"  RMSE:        {fit_result.errors['rmse']:.4f} fm\n"
+                                f"  Chi^2:       {fit_result.errors['chi_squared']:.4f}\n"
+                                f"  Chi^2 (Red): {fit_result.errors['chi_squared_reduced']:.6f}\n"
+                                f"  L_inf:       {fit_result.errors['l_infinity']:.4f} fm\n"
+                                f"  Surface Δ:   {fit_result.surface_diff:.4f} fm^2")
 
                 # Reconstruct for Plotting (LOW PRECISION via Downsampling)
-                theta_plot = theta_rec_calc[idx]
-                r_rec_plot = r_rec_calc[idx]
+                theta_plot = fit_result.theta_reconstructed[idx]
+                r_rec_plot = fit_result.r_reconstructed[idx]
 
                 z_beta = r_rec_plot * np.cos(theta_plot) - shift
                 rho_beta = r_rec_plot * np.sin(theta_plot)
@@ -499,14 +412,14 @@ class FoSShapePlotter:
                 self.lines['beta'].set_data([], [])
                 self.lines['beta_m'].set_data([], [])
                 # Clear cached beta params when conversion fails
-                self._last_beta_params = None
+                self._last_beta_result = None
         else:
             # Show Beta is OFF - clear spherical and beta lines and cache
             self.lines['fos_sph'].set_data([], [])
             self.lines['fos_sph_m'].set_data([], [])
             self.lines['beta'].set_data([], [])
             self.lines['beta_m'].set_data([], [])
-            self._last_beta_params = None
+            self._last_beta_result = None
 
         # Auto-scale
         limit = max(np.max(np.abs(z_fos_calc)), np.max(rho_fos_calc)) * 1.2
