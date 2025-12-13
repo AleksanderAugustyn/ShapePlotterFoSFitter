@@ -171,11 +171,11 @@ class FoSShapePlotter:
         Returns:
             Tuple of (betas, l_max, theta_rec, r_rec, errors, surface_diff, converged).
         """
-        BATCH_SIZE = 16
+        BATCH_SIZE = 32
         MAX_L = 1024
         RMSE_THRESHOLD = 0.2
         LINF_THRESHOLD = 0.5
-        SURFACE_DIFF_THRESHOLD = 2.0
+        SURFACE_DIFF_THRESHOLD = 0.5
 
         l_max = BATCH_SIZE
         converged = False
