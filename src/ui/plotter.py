@@ -112,6 +112,8 @@ class FoSShapePlotter:
         # Initialize lines
         self.lines['fos'] = self.ax_plot.plot([], [], 'b-', label='FoS Shape', lw=2)[0]
         self.lines['fos_m'] = self.ax_plot.plot([], [], 'b-', lw=2)[0]
+        self.lines['fos_sph'] = self.ax_plot.plot([], [], 'g-', label='FoS (Spherical)', lw=2, alpha=0.7)[0]
+        self.lines['fos_sph_m'] = self.ax_plot.plot([], [], 'g-', lw=2, alpha=0.7)[0]
         self.lines['beta'] = self.ax_plot.plot([], [], 'r--', label='Beta Approx', lw=2, alpha=0.7)[0]
         self.lines['beta_m'] = self.ax_plot.plot([], [], 'r--', lw=2, alpha=0.7)[0]
         self.lines['ref_sphere'] = self.ax_plot.plot([], [], '--', color='gray', alpha=0.5)[0]
@@ -215,7 +217,7 @@ class FoSShapePlotter:
             self._cached_sphere_surface = self.params.sphere_surface_area
             self._cached_Z = self.params.protons
             self._cached_N = self.params.neutrons
-        return self._cached_sphere_volume, self._cached_sphere_surface
+        return float(self._cached_sphere_volume), float(self._cached_sphere_surface)
 
     def _fit_beta_iteratively(
             self,
@@ -411,6 +413,14 @@ class FoSShapePlotter:
                                   f"  Volume:  {sph_volume:.2f} fm^3\n"
                                   f"  Surface: {sph_surface:.2f} fm^2\n\n")
 
+                # Plot the converted spherical shape at its actual location (with z-shift)
+                theta_sph_plot = theta_calc[idx]
+                r_sph_plot = r_fos_sph_calc[idx]
+                z_sph = r_sph_plot * np.cos(theta_sph_plot)  # No shift subtraction - actual position
+                rho_sph = r_sph_plot * np.sin(theta_sph_plot)
+                self.lines['fos_sph'].set_data(z_sph, rho_sph)
+                self.lines['fos_sph_m'].set_data(z_sph, -rho_sph)
+
                 # Calculate conversion metrics (cylindrical → spherical round-trip)
                 z_roundtrip = r_fos_sph_calc * np.cos(theta_calc) - shift
                 rho_roundtrip = r_fos_sph_calc * np.sin(theta_calc)
@@ -440,7 +450,7 @@ class FoSShapePlotter:
                 betas, l_max, theta_rec_calc, r_rec_calc, errors, surface_diff, converged = \
                     self._fit_beta_iteratively(theta_calc, r_fos_sph_calc, sph_surface, self.params.nucleons)
 
-                # Cache beta fitting results for Print Betas button
+                # Cache beta fitting results for the Print Betas button
                 self._last_beta_params = betas
                 self._last_l_max = l_max
                 self._last_errors = errors
@@ -475,12 +485,16 @@ class FoSShapePlotter:
                 self.lines['beta_m'].set_data(z_beta, -rho_beta)
             else:
                 spherical_text = "Shape not convertible to spherical.\n\n"
+                self.lines['fos_sph'].set_data([], [])
+                self.lines['fos_sph_m'].set_data([], [])
                 self.lines['beta'].set_data([], [])
                 self.lines['beta_m'].set_data([], [])
                 # Clear cached beta params when conversion fails
                 self._last_beta_params = None
         else:
-            # Show Beta is OFF - clear beta lines and cache
+            # Show Beta is OFF - clear spherical and beta lines and cache
+            self.lines['fos_sph'].set_data([], [])
+            self.lines['fos_sph_m'].set_data([], [])
             self.lines['beta'].set_data([], [])
             self.lines['beta_m'].set_data([], [])
             self._last_beta_params = None
