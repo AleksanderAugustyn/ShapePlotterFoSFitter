@@ -336,17 +336,19 @@ class FoSShapePlotter:
 
         # 2. Calculate FoS (HIGH PRECISION)
         calc = FoSShapeCalculator(self.params)
-        z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc)
 
-        # The radius rho should strictly be > 0 everywhere except the endpoints.
-        # If we find 0 inside the array, it means f(u) <= 0 (invalid or scission).
-        # We slice [1:-1] to ignore the very tips.
-        is_physically_valid = not np.any(rho_fos_calc[1:-1] == 0)
+        # Calculate with volume fixing enabled
+        z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc, fix_volume=True)
 
-        if not is_physically_valid:
+        # --- Validity Check ---
+        # Even with volume fixing, if rho was 0 internally, the shape is topologically questionable.
+        # We check for zeros in the middle of the array (excluding tips).
+        has_internal_zeros = np.any(rho_fos_calc[1:-1] == 0)
+
+        if has_internal_zeros:
             if self.warning_text is None:
                 self.warning_text = self.ax_plot.text(
-                    0.5, 0.5, "INVALID SHAPE\n(Volume Mismatch)",
+                    0.5, 0.5, "SHAPE INVALID\n(Volume Forced)",
                     transform=self.ax_plot.transAxes,
                     color='red', ha='center', va='center',
                     fontsize=14, fontweight='bold',

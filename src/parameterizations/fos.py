@@ -122,8 +122,15 @@ class FoSShapeCalculator:
 
         return result
 
-    def calculate_shape(self, n_points: int = 720) -> tuple[FloatArray, FloatArray]:
-        """Returns: z: axial coordinates, rho: radial coordinates"""
+    def calculate_shape(self, n_points: int = 720, fix_volume: bool = False, tolerance: float = 1e-3) -> tuple[FloatArray, FloatArray]:
+        """
+        Returns: z: axial coordinates, rho: radial coordinates
+
+        Args:
+            n_points: Number of grid points.
+            fix_volume: If True, checks volume and renormalizes rho if deviation > tolerance.
+            tolerance: Maximum allowable volume difference (in fm^3) before scaling is applied.
+        """
         z_min = -self.params.z0 + self.params.z_sh
         z_max = self.params.z0 + self.params.z_sh
         z: FloatArray = np.linspace(z_min, z_max, n_points, dtype=float)
@@ -132,8 +139,27 @@ class FoSShapeCalculator:
         u = np.clip(u, -1.0, 1.0)
 
         f_vals = self.f_function(u)
+
+        # Clip negative values to 0 (this is the source of volume loss/gain)
         rho_squared = self.params.radius0 ** 2 / self.params.c_elongation * f_vals
         rho: FloatArray = np.asarray(np.sqrt(np.maximum(rho_squared, 0.0)), dtype=float)
+
+        if fix_volume:
+            # 1. Calculate the actual volume of the generated shape
+            volume_current = self.calculate_volume(z, rho)
+
+            # 2. Get the theoretical target volume
+            volume_sphere = self.params.sphere_volume
+
+            # 3. Only scale if the difference is physically significant
+            if abs(volume_current - volume_sphere) > tolerance:
+                # 4. Avoid division by zero if the shape is completely broken
+                if volume_current > 1e-6:
+                    # 5. Calculate the scaling factor (Square root because length is fixed)
+                    scale_factor = np.sqrt(volume_sphere / volume_current)
+
+                    # 6. Apply scaling
+                    rho = rho * scale_factor
 
         return z, rho
 
