@@ -223,6 +223,12 @@ class IterativeBetaFitter:
         }
         surface_diff: float = float('inf')
 
+        # Track previous values for stagnation detection
+        prev_rmse: float = float('inf')
+        prev_linf: float = float('inf')
+        prev_surface_diff: float = float('inf')
+        min_improvement: float = 0.0001
+
         while l_max < self.max_beta:
             # Determine batch range
             l_start = l_max + 1
@@ -271,6 +277,22 @@ class IterativeBetaFitter:
                     surface_diff < self.surface_diff_threshold):
                 converged = True
                 break
+
+            # Check for stagnation: if all metrics improved by less than min_improvement, stop
+            rmse_improvement = prev_rmse - rmse
+            linf_improvement = prev_linf - l_inf
+            surface_improvement = prev_surface_diff - surface_diff
+
+            if (rmse_improvement < min_improvement and
+                    linf_improvement < min_improvement and
+                    surface_improvement < min_improvement):
+                print(f"Stagnation detected at l_max={l_max}: improvements below {min_improvement}")
+                break
+
+            # Update previous values for the next iteration
+            prev_rmse = rmse
+            prev_linf = l_inf
+            prev_surface_diff = surface_diff
 
             print(f"RMSE: {rmse:.4f} fm, L-infinity: {l_inf:.4f} fm, Surface Diff: {surface_diff:.4f} fm²")
 

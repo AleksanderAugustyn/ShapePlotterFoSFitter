@@ -261,7 +261,7 @@ class CylindricalToSphericalConverter:
             if conv.is_unambiguously_convertible(n_check):
                 return conv, shift
 
-            # Try adjustments around neck position
+            # Try adjustments around the neck position
             for delta in [0.05, -0.05, 0.1, -0.1, 0.15, -0.15, 0.2, -0.2]:
                 shift = -z_neck + delta
                 z_work = z_points + shift
