@@ -338,7 +338,7 @@ class FoSShapePlotter:
         calc = FoSShapeCalculator(self.params)
 
         # Calculate with volume fixing enabled
-        z_fos_calc, rho_fos_calc = calc.calculate_shape(self.n_calc, fix_volume=True)
+        z_fos_calc, rho_fos_calc, scale_factor = calc.calculate_shape(self.n_calc, fix_volume=True)
 
         # --- Validity Check ---
         # Even with volume fixing, if rho was 0 internally, the shape is topologically questionable.
@@ -384,8 +384,8 @@ class FoSShapePlotter:
 
         # Only convert to spherical and fit betas when Show Beta is enabled
         if self.show_beta_approx:
-            print(f"Calculating spherical conversion and fitting beta parameters for current shape: Z={self.params.protons}, N={self.params.neutrons}, c={self.params.c_elongation}, a3={self.params.get_coefficient(3)}, "
-                  f"a4={self.params.get_coefficient(4)}, a5={self.params.get_coefficient(5)}, a6={self.params.get_coefficient(6)}")
+            print(f"Calculating spherical conversion and fitting beta parameters for current shape: Z={self.params.protons}, N={self.params.neutrons}, c={self.params.c_elongation:.2f}, a3={self.params.get_coefficient(3):.2f}, "
+                  f"a4={self.params.get_coefficient(4):.2f}, a5={self.params.get_coefficient(5):.2f}, a6={self.params.get_coefficient(6):.2f}")
             # Find star-convex shift if needed
             conv, shift = CylindricalToSphericalConverter.find_star_convex_shift(
                 z_fos_calc, rho_fos_calc, self.params.z_sh, n_check=self.n_calc
@@ -490,6 +490,9 @@ class FoSShapePlotter:
         self.ax_text.axis('off')
         if self.show_text_info:
             sphere_vol, sphere_surf = self._get_sphere_properties()
+            # Build scale factor string (only show if scaling was applied)
+            scale_str = f"  Scale:   {scale_factor:.4f}\n" if scale_factor != 1.0 else ""
+
             info = (f"FoS Parameters:\n"
                     f"c={self.params.c_elongation:.3f}, q2={self.params.q2:.3f}\n"
                     f"a3={self.params.get_coefficient(3):.3f}, a4={self.params.get_coefficient(4):.3f}\n"
@@ -499,7 +502,8 @@ class FoSShapePlotter:
                     f"  Surface: {sphere_surf:.2f} fm^2\n\n"
                     f"FoS Shape (cylindrical):\n"
                     f"  Volume:  {fos_volume:.2f} fm^3\n"
-                    f"  Surface: {fos_surface:.2f} fm^2\n\n"
+                    f"  Surface: {fos_surface:.2f} fm^2\n"
+                    + scale_str + "\n"
                     + spherical_text + conversion_metrics_text + beta_fit_text + metrics_text)
 
             self.ax_text.text(0, 1, info, va='top', fontfamily='monospace', fontsize=9)

@@ -122,9 +122,9 @@ class FoSShapeCalculator:
 
         return result
 
-    def calculate_shape(self, n_points: int = 720, fix_volume: bool = False, tolerance: float = 1e-3) -> tuple[FloatArray, FloatArray]:
+    def calculate_shape(self, n_points: int = 720, fix_volume: bool = False, tolerance: float = 1e-3) -> tuple[FloatArray, FloatArray, float]:
         """
-        Returns: z: axial coordinates, rho: radial coordinates
+        Returns: z: axial coordinates, rho: radial coordinates, scale_factor: applied scaling (1.0 if none)
 
         Args:
             n_points: Number of grid points.
@@ -144,6 +144,8 @@ class FoSShapeCalculator:
         rho_squared = self.params.radius0 ** 2 / self.params.c_elongation * f_vals
         rho: FloatArray = np.asarray(np.sqrt(np.maximum(rho_squared, 0.0)), dtype=float)
 
+        scale_factor: float = 1.0
+
         if fix_volume:
             # 1. Calculate the actual volume of the generated shape
             volume_current = self.calculate_volume(z, rho)
@@ -161,7 +163,7 @@ class FoSShapeCalculator:
                     # 6. Apply scaling
                     rho = rho * scale_factor
 
-        return z, rho
+        return z, rho, scale_factor
 
     @staticmethod
     def calculate_volume(z: np.ndarray, rho: np.ndarray) -> float:
