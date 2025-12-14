@@ -372,9 +372,10 @@ class FoSShapePlotter:
             self.params.radius0 * np.sin(theta_ref)
         )
 
-        # Calculate FoS volume and surface area (cylindrical)
+        # Calculate FoS volume, surface area, and center of mass (cylindrical)
         fos_volume = FoSShapeCalculator.calculate_volume(z_fos_calc, rho_fos_calc)
         fos_surface = FoSShapeCalculator.calculate_surface_area(z_fos_calc, rho_fos_calc)
+        fos_com = FoSShapeCalculator.calculate_center_of_mass(z_fos_calc, rho_fos_calc)
 
         # Initialize text sections
         spherical_text: str = ""
@@ -394,12 +395,14 @@ class FoSShapePlotter:
             if conv.is_unambiguously_convertible(self.n_calc):
                 theta_calc, r_fos_sph_calc = conv.convert_to_spherical(self.n_calc)
 
-                # Calculate spherical volume/surface
+                # Calculate spherical volume/surface/CoM
                 sph_volume = BetaDeformationCalculator.calculate_volume_spherical(theta_calc, r_fos_sph_calc)
                 sph_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_calc, r_fos_sph_calc)
+                sph_com = BetaDeformationCalculator.calculate_center_of_mass_spherical(theta_calc, r_fos_sph_calc)
                 spherical_text = (f"FoS Shape (spherical):\n"
                                   f"  Volume:  {sph_volume:.2f} fm^3\n"
-                                  f"  Surface: {sph_surface:.2f} fm^2\n\n")
+                                  f"  Surface: {sph_surface:.2f} fm^2\n"
+                                  f"  CoM z:   {sph_com:.2f} fm\n\n")
 
                 # Plot the converted spherical shape at its actual location (with z-shift)
                 theta_sph_plot = theta_calc[idx]
@@ -433,16 +436,20 @@ class FoSShapePlotter:
                 # Cache beta fitting results for the Print Betas button
                 self._last_beta_result = fit_result
 
-                # Calculate beta fit volume/surface
+                # Calculate beta fit volume/surface/CoM
                 beta_volume = BetaDeformationCalculator.calculate_volume_spherical(
                     fit_result.theta_reconstructed, fit_result.r_reconstructed
                 )
                 beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(
                     fit_result.theta_reconstructed, fit_result.r_reconstructed
                 )
+                beta_com = BetaDeformationCalculator.calculate_center_of_mass_spherical(
+                    fit_result.theta_reconstructed, fit_result.r_reconstructed
+                )
                 beta_fit_text = (f"Beta Fit Shape (l_max={fit_result.l_max}):\n"
                                  f"  Volume:  {beta_volume:.2f} fm^3\n"
-                                 f"  Surface: {beta_surface:.2f} fm^2\n\n")
+                                 f"  Surface: {beta_surface:.2f} fm^2\n"
+                                 f"  CoM z:   {beta_com:.2f} fm\n\n")
 
                 # Build metrics text with convergence status
                 status = "Converged" if fit_result.converged else "Max l reached"
@@ -503,6 +510,7 @@ class FoSShapePlotter:
                     f"FoS Shape (cylindrical):\n"
                     f"  Volume:  {fos_volume:.2f} fm^3\n"
                     f"  Surface: {fos_surface:.2f} fm^2\n"
+                    f"  CoM z:   {fos_com:.2f} fm\n"
                     + scale_str + "\n"
                     + spherical_text + conversion_metrics_text + beta_fit_text + metrics_text)
 

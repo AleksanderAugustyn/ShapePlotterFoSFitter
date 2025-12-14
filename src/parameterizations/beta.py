@@ -118,6 +118,19 @@ class BetaDeformationCalculator:
         return float(2 * np.pi * simpson(integrand, x=theta))
 
     @staticmethod
+    def calculate_center_of_mass_spherical(theta: np.ndarray, r: np.ndarray) -> float:
+        """Calculate center of mass z-coordinate from spherical coordinates r(θ).
+
+        z_cm = ∫ z * dV / V where z = r*cos(θ) and dV = (2π/3) r³ sin(θ) dθ
+        z_cm = (2π/3) ∫ r⁴ cos(θ) sin(θ) dθ / V
+        """
+        volume = BetaDeformationCalculator.calculate_volume_spherical(theta, r)
+        if volume < 1e-10:
+            return 0.0
+        integrand = r ** 4 * np.cos(theta) * np.sin(theta)
+        return float((2 * np.pi / 3) * simpson(integrand, x=theta) / volume)
+
+    @staticmethod
     def calculate_errors(r_original: np.ndarray,
                          r_reconstructed: np.ndarray,
                          n_params: int = 0) -> ShapeComparisonMetrics:

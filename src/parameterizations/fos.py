@@ -179,3 +179,15 @@ class FoSShapeCalculator:
         d_rho_dz = np.gradient(rho, z)
         integrand = 2 * np.pi * rho * np.sqrt(1 + d_rho_dz ** 2)
         return float(simpson(integrand, x=z))
+
+    @staticmethod
+    def calculate_center_of_mass(z: np.ndarray, rho: np.ndarray) -> float:
+        """Calculate center of mass z-coordinate in cylindrical coordinates.
+
+        z_cm = ∫ z * π * ρ² dz / V
+        """
+        volume = FoSShapeCalculator.calculate_volume(z, rho)
+        if volume < 1e-10:
+            return 0.0
+        integrand = z * np.pi * rho ** 2
+        return float(simpson(integrand, x=z) / volume)
