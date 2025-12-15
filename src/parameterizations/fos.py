@@ -122,14 +122,16 @@ class FoSShapeCalculator:
 
         return result
 
-    def calculate_shape(self, n_points: int = 720, fix_volume: bool = False, tolerance: float = 1e-3) -> tuple[FloatArray, FloatArray, float]:
-        """
-        Returns: z: axial coordinates, rho: radial coordinates, scale_factor: applied scaling (1.0 if none)
+    def calculate_shape(self, n_points: int = 720) -> tuple[FloatArray, FloatArray, bool]:
+        """Calculate the FoS shape in cylindrical coordinates.
 
         Args:
             n_points: Number of grid points.
-            fix_volume: If True, checks volume and renormalizes rho if deviation > tolerance.
-            tolerance: Maximum allowable volume difference (in fm^3) before scaling is applied.
+
+        Returns:
+            z: Axial coordinates.
+            rho: Radial coordinates.
+            is_valid: False if rho^2 <= 0 at any interior point (volume/elongation not conserved).
         """
         z_min = -self.params.z0 + self.params.z_sh
         z_max = self.params.z0 + self.params.z_sh
@@ -140,30 +142,16 @@ class FoSShapeCalculator:
 
         f_vals = self.f_function(u)
 
-        # Clip negative values to 0 (this is the source of volume loss/gain)
         rho_squared = self.params.radius0 ** 2 / self.params.c_elongation * f_vals
+
+        # Validity check: rho^2 must be positive at all interior points
+        # (tips at indices 0 and -1 are allowed to be zero)
+        is_valid = bool(np.all(rho_squared[1:-1] > 0))
+
+        # Clip negative values to 0 for plotting (shape will be marked invalid)
         rho: FloatArray = np.asarray(np.sqrt(np.maximum(rho_squared, 0.0)), dtype=float)
 
-        scale_factor: float = 1.0
-
-        if fix_volume:
-            # 1. Calculate the actual volume of the generated shape
-            volume_current = self.calculate_volume(z, rho)
-
-            # 2. Get the theoretical target volume
-            volume_sphere = self.params.sphere_volume
-
-            # 3. Only scale if the difference is physically significant
-            if abs(volume_current - volume_sphere) > tolerance:
-                # 4. Avoid division by zero if the shape is completely broken
-                if volume_current > 1e-6:
-                    # 5. Calculate the scaling factor (Square root because length is fixed)
-                    scale_factor = np.sqrt(volume_sphere / volume_current)
-
-                    # 6. Apply scaling
-                    rho = rho * scale_factor
-
-        return z, rho, scale_factor
+        return z, rho, is_valid
 
     @staticmethod
     def calculate_volume(z: np.ndarray, rho: np.ndarray) -> float:

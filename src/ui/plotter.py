@@ -336,19 +336,14 @@ class FoSShapePlotter:
 
         # 2. Calculate FoS (HIGH PRECISION)
         calc = FoSShapeCalculator(self.params)
-
-        # Calculate with volume fixing enabled
-        z_fos_calc, rho_fos_calc, scale_factor = calc.calculate_shape(self.n_calc, fix_volume=True)
+        z_fos_calc, rho_fos_calc, is_valid = calc.calculate_shape(self.n_calc)
 
         # --- Validity Check ---
-        # Even with volume fixing, if rho was 0 internally, the shape is topologically questionable.
-        # We check for zeros in the middle of the array (excluding tips).
-        has_internal_zeros = np.any(rho_fos_calc[1:-1] == 0)
-
-        if has_internal_zeros:
+        # Shape is invalid if rho^2 <= 0 at any interior point (volume/elongation not conserved)
+        if not is_valid:
             if self.warning_text is None:
                 self.warning_text = self.ax_plot.text(
-                    0.5, 0.5, "SHAPE INVALID\n(Volume Forced)",
+                    0.5, 0.5, "SHAPE INVALID\n(ρ² ≤ 0 at interior)",
                     transform=self.ax_plot.transAxes,
                     color='red', ha='center', va='center',
                     fontsize=14, fontweight='bold',
@@ -497,8 +492,6 @@ class FoSShapePlotter:
         self.ax_text.axis('off')
         if self.show_text_info:
             sphere_vol, sphere_surf = self._get_sphere_properties()
-            # Build scale factor string (only show if scaling was applied)
-            scale_str = f"  Scale:   {scale_factor:.4f}\n" if scale_factor != 1.0 else ""
 
             info = (f"FoS Parameters:\n"
                     f"c={self.params.c_elongation:.3f}, q2={self.params.q2:.3f}\n"
@@ -510,8 +503,7 @@ class FoSShapePlotter:
                     f"FoS Shape (cylindrical):\n"
                     f"  Volume:  {fos_volume:.2f} fm^3\n"
                     f"  Surface: {fos_surface:.2f} fm^2\n"
-                    f"  CoM z:   {fos_com:.2f} fm\n"
-                    + scale_str + "\n"
+                    f"  CoM z:   {fos_com:.2f} fm\n\n"
                     + spherical_text + conversion_metrics_text + beta_fit_text + metrics_text)
 
             self.ax_text.text(0, 1, info, va='top', fontfamily='monospace', fontsize=9)
