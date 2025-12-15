@@ -54,7 +54,7 @@ def _simpson_fast(y: FloatArray, x: FloatArray) -> float:
         return 0.0
     if n % 2 == 0:
         # Trapezoidal fallback for even N
-        return float(np.trapz(y, x))
+        return float(np.trapezoid(y, x))
 
     h = (x[-1] - x[0]) / (n - 1)
     s = y[0] + y[-1] + 4.0 * np.sum(y[1:-1:2]) + 2.0 * np.sum(y[2:-1:2])
@@ -73,7 +73,7 @@ def _compute_ylm_matrix(l_values: np.ndarray, cos_theta: np.ndarray) -> FloatArr
 
     Args:
         l_values: Array of l values, shape (n_l,)
-        cos_theta: Array of cos(θ) values, shape (n_theta,)
+        cos_theta: Array of cos(θ) values, shape (n_theta)
 
     Returns:
         Matrix of shape (n_l, n_theta) containing Y_l0 values.
@@ -132,7 +132,7 @@ class BetaDeformationCalculator:
     def _build_ylm_matrix(self, l_start: int, l_end: int) -> FloatArray:
         """Build a matrix of Y_l0 values for l in [l_start, l_end].
 
-        OPTIMIZED: Uses Legendre polynomials which are much faster than sph_harm_y.
+        OPTIMIZED: Uses Legendre polynomials, which are much faster than sph_harm_y.
 
         Returns:
             Matrix of shape (l_end - l_start + 1, n_theta) where each row is Y_l0(θ).
@@ -170,7 +170,7 @@ class BetaDeformationCalculator:
             numerators = integrand_matrix @ weights
         else:
             # Fallback: trapezoidal rule
-            numerators = np.trapz(integrand_matrix, x=self.theta, axis=1)
+            numerators = np.trapezoid(integrand_matrix, x=self.theta, axis=1)
 
         # Compute beta values
         sqrt_4pi = np.sqrt(4.0 * np.pi)
@@ -258,16 +258,16 @@ class BetaDeformationCalculator:
         dr_dtheta = np.empty(n, dtype=np.float64)
 
         if n == 2:
-            # Only two points - use simple difference
+            # Only two points - use a simple difference
             dr_dtheta[:] = (r[1] - r[0]) / (theta[1] - theta[0])
         else:
             # Central differences for interior
             dr_dtheta[1:-1] = (r[2:] - r[:-2]) / (theta[2:] - theta[:-2])
 
-            # Forward difference at start
+            # Forward difference at the start
             dr_dtheta[0] = (r[1] - r[0]) / (theta[1] - theta[0])
 
-            # Backward difference at end
+            # Backward difference at the end
             dr_dtheta[-1] = (r[-1] - r[-2]) / (theta[-1] - theta[-2])
 
         sin_theta = np.sin(theta)
@@ -277,7 +277,7 @@ class BetaDeformationCalculator:
 
     @staticmethod
     def calculate_center_of_mass_spherical(theta: np.ndarray, r: np.ndarray) -> float:
-        """Calculate center of mass z-coordinate from spherical coordinates r(θ).
+        """Calculate the center of mass z-coordinate from spherical coordinates r(θ).
 
         z_cm = ∫ z * dV / V where z = r*cos(θ)
         z_cm = (π/2) ∫ r⁴ cos(θ) sin(θ) dθ / V

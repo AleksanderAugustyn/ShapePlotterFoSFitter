@@ -7,7 +7,7 @@ OPTIMIZED VERSION:
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -25,9 +25,9 @@ class FoSParameters:
     r0_constant: float = 1.16
 
     # Cache for vectorized coefficients (Internal optimization state)
-    _coeff_array_even: FloatArray = field(init=False, repr=False, default=None)
-    _coeff_array_odd: FloatArray = field(init=False, repr=False, default=None)
-    _k_indices: FloatArray = field(init=False, repr=False, default=None)
+    _coeff_array_even: Optional[FloatArray] = field(init=False, repr=False, default=None)
+    _coeff_array_odd: Optional[FloatArray] = field(init=False, repr=False, default=None)
+    _k_indices: Optional[FloatArray] = field(init=False, repr=False, default=None)
     _last_coeff_hash: int = field(init=False, repr=False, default=0)
 
     @property
@@ -67,7 +67,7 @@ class FoSParameters:
     def set_coefficient(self, index: int, value: float) -> None:
         """Set coefficient a_index."""
         self.coefficients[index] = value
-        # Invalidate cache so it recalculates on next draw
+        # Invalidate cache so it recalculates on the next draw
         self._last_coeff_hash = 0
 
     @property
@@ -88,7 +88,7 @@ class FoSParameters:
         if self._last_coeff_hash == current_hash and self._k_indices is not None:
             return
 
-        # Determine max index needed
+        # Determine the max index needed
         max_idx = 4
         if self.coefficients:
             max_idx = max(max_idx, max(self.coefficients.keys()))
@@ -127,6 +127,9 @@ class FoSParameters:
     def vectorized_data(self) -> Tuple[FloatArray, FloatArray, FloatArray]:
         """Returns (k_values, a_even, a_odd) for vectorization."""
         self._update_vectorized_coefficients()
+        assert self._k_indices is not None
+        assert self._coeff_array_even is not None
+        assert self._coeff_array_odd is not None
         return self._k_indices, self._coeff_array_even, self._coeff_array_odd
 
     @property
@@ -215,7 +218,7 @@ class FoSShapeCalculator:
         """Fast implementation of Simpson's rule for strictly odd N (even intervals)."""
         n = len(y)
         if n % 2 == 0:
-            return float(np.trapz(y, x))
+            return float(np.trapezoid(y, x))
 
         h = (x[-1] - x[0]) / (n - 1)
         s = y[0] + y[-1] + 4 * np.sum(y[1:-1:2]) + 2 * np.sum(y[2:-1:2])
@@ -231,7 +234,7 @@ class FoSShapeCalculator:
         """
         z0 = self.params.z0
         z_sh = self.params.z_sh
-        R0 = self.params.radius0
+        r0 = self.params.radius0
         c = self.params.c_elongation
 
         z = np.linspace(-z0 + z_sh, z0 + z_sh, n_points)
@@ -249,11 +252,11 @@ class FoSShapeCalculator:
         f_prime_clamped = np.where(valid_mask, f_prime, 0.0)
 
         # Factor A where rho = A * sqrt(f)
-        A2 = (R0 ** 2) / c
+        a2 = (r0 ** 2) / c
 
         # Volume Integrand
         # rho^2 = A^2 * f_clamped
-        rho2 = A2 * f_clamped
+        rho2 = a2 * f_clamped
         integrand_vol = np.pi * rho2
         volume = self._simpson_fast(integrand_vol, z)
 
@@ -266,11 +269,11 @@ class FoSShapeCalculator:
         # Surface Integrand
         # term = rho * rho' = (A^2 / 2*z0) * f'
         # With clamped arrays, this is 0 in invalid regions.
-        term_rho_rho_prime = (A2 / (2 * z0)) * f_prime_clamped
+        term_rho_rho_prime = (a2 / (2 * z0)) * f_prime_clamped
 
         # S = 2*pi * integral(sqrt(rho^2 + (rho*rho')^2))
         # Note: rho2 is A^2 * f (already squared rho)
-        # We square term_rho_rho_prime.
+        # We square the term_rho_rho_prime.
         integrand_surf = 2 * np.pi * np.sqrt(rho2 + term_rho_rho_prime ** 2)
         surface = self._simpson_fast(integrand_surf, z)
 

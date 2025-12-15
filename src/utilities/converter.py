@@ -33,7 +33,7 @@ def _simpson_fast(y: FloatArray, x: FloatArray) -> float:
     if n < 2:
         return 0.0
     if n % 2 == 0:
-        return float(np.trapz(y, x))
+        return float(np.trapezoid(y, x))
 
     h = (x[-1] - x[0]) / (n - 1)
     s = y[0] + y[-1] + 4.0 * np.sum(y[1:-1:2]) + 2.0 * np.sum(y[2:-1:2])
@@ -83,7 +83,7 @@ class CylindricalToSphericalConverter:
         z_arr = np.atleast_1d(z)
         result = np.zeros_like(z_arr, dtype=np.float64)
 
-        # Only evaluate within valid range
+        # Only evaluate within a valid range
         valid_mask = (z_arr >= self.z_min) & (z_arr <= self.z_max)
         if np.any(valid_mask):
             result[valid_mask] = self._spline(z_arr[valid_mask])
@@ -114,7 +114,7 @@ class CylindricalToSphericalConverter:
         """Converts the shape to spherical coordinates r(θ).
 
         Uses a fast hybrid approach:
-        1. Geometry-aware initial guesses based on shape extent
+        1. Geometry-aware initial guesses based on the shape extent
         2. Vectorized Newton-Raphson for fast convergence
         3. Bisection fallback for points that don't converge
 
@@ -133,11 +133,10 @@ class CylindricalToSphericalConverter:
         r[-1] = abs(self.z_min)
 
         # For interior points, compute initial guess based on ray-shape intersection
-        # At angle θ, the ray z = r*cos(θ), ρ = r*sin(θ) should intersect the shape
+        # At an angle θ, the ray z = r*cos(θ), ρ = r*sin(θ) should intersect the shape
         # Initial guess: blend between pole values and equatorial value
         rho_at_0 = max(float(self.rho_of_z(0.0)), 0.1)
         for i in range(1, n_theta - 1):
-            th = theta[i]
             # Smooth blend: at θ=0 use z_max, at θ=π use |z_min|, at θ=π/2 use ρ(0)
             # Using sin²/cos² weighting for smooth transition
             w_pole = abs(cos_theta[i])
@@ -221,8 +220,8 @@ class CylindricalToSphericalConverter:
         def f(r: float) -> float:
             z = r * cos_t
             if z < self.z_min or z > self.z_max:
-                return r * sin_t
-            return r * sin_t - max(float(self._spline(z)), 0.0)
+                return float(r * sin_t)
+            return float(r * sin_t - max(float(self._spline(z)), 0.0))
 
         r_lo, r_hi = 0.0, r_max
         f_lo, f_hi = f(r_lo), f(r_hi)
@@ -337,7 +336,7 @@ class CylindricalToSphericalConverter:
         surface_diff = abs(surf_spherical - surf_original)
 
         # For shape comparison, evaluate original rho at the roundtrip z positions
-        # This is more robust than trying to interpolate roundtrip back to original grid
+        # This is more robust than trying to interpolate roundtrip back to the original grid
         rho_expected = np.zeros_like(z_roundtrip)
         in_range = (z_roundtrip >= self.z_min) & (z_roundtrip <= self.z_max)
         if np.any(in_range):
