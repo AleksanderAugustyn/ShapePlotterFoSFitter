@@ -338,6 +338,8 @@ class FoSShapePlotter:
         calc = FoSShapeCalculator(self.params)
         z_fos_calc, rho_fos_calc, is_valid = calc.calculate_shape(self.n_calc)
 
+        fos_volume, fos_surface, fos_com = calc.calculate_metrics_fast(self.n_calc)
+
         # --- Validity Check ---
         # Shape is invalid if rho^2 <= 0 at any interior point (volume/elongation not conserved)
         if not is_valid:
@@ -366,11 +368,6 @@ class FoSShapePlotter:
             self.params.radius0 * np.cos(theta_ref),
             self.params.radius0 * np.sin(theta_ref)
         )
-
-        # Calculate FoS volume, surface area, and center of mass (cylindrical)
-        fos_volume = FoSShapeCalculator.calculate_volume(z_fos_calc, rho_fos_calc)
-        fos_surface = FoSShapeCalculator.calculate_surface_area(z_fos_calc, rho_fos_calc)
-        fos_com = FoSShapeCalculator.calculate_center_of_mass(z_fos_calc, rho_fos_calc)
 
         # Initialize text sections
         spherical_text: str = ""
