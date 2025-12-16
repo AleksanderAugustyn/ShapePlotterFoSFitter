@@ -419,7 +419,7 @@ class IterativeBetaFitter:
         while l_max < self.max_beta:
             iteration_count += 1
 
-            # Relax surface diff threshold after 10 iterations (320 parameters)
+            # Relax the surface diff threshold after 10 iterations (320 parameters)
             if iteration_count == 10 and not relaxed_threshold:
                 self.surface_diff_threshold = 4.0
                 relaxed_threshold = True

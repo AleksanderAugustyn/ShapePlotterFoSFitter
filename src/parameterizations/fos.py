@@ -296,16 +296,16 @@ class FoSShapeCalculator:
         if vol < 1e-10: return 0.0
         return FoSShapeCalculator._simpson_fast(z * np.pi * rho ** 2, z) / vol
 
-    def find_neck_thickness(self, n_points: int = 7200) -> Optional[float]:
-        """Find the radial thickness of the narrowest part of the neck.
+    def find_neck_thickness(self, n_points: int = 7200) -> Optional[Tuple[float, float]]:
+        """Find the radial thickness and z-position of the narrowest part of the neck.
 
         The neck is the minimum of rho(z) between two local maxima (fragment tops).
         Only meaningful for shapes with a pronounced neck (a4 + a6 >= 0.4).
 
         Returns:
-            The neck radius (min_rho), or None if no clear neck structure found.
+            Tuple of (rho_neck, z_neck), or None if no clear neck structure is found.
         """
-        _, rho, _ = self.calculate_shape(n_points)
+        z, rho, _ = self.calculate_shape(n_points)
 
         # Find local maxima using vectorized comparison
         # A point is a local max if it's greater than both neighbors
@@ -326,6 +326,37 @@ class FoSShapeCalculator:
 
         # Find minimum rho between these two maxima
         between_rho = rho[left_idx:right_idx + 1]
-        min_rho = float(np.min(between_rho))
+        min_local_idx = int(np.argmin(between_rho))
+        neck_idx = left_idx + min_local_idx
 
-        return min_rho
+        rho_neck = float(rho[neck_idx])
+        z_neck = float(z[neck_idx])
+
+        return rho_neck, z_neck
+
+    def calculate_fragment_volumes(self, z_neck: float, n_points: int = 7200) -> Tuple[float, float]:
+        """Calculate volumes of the two fragments separated at z_neck.
+
+        Args:
+            z_neck: The z-coordinate where the neck divides the shape.
+            n_points: Number of points for integration.
+
+        Returns:
+            Tuple of (volume_left, volume_right) where left is z < z_neck.
+        """
+        z, rho, _ = self.calculate_shape(n_points)
+
+        # Find the index closest to z_neck
+        neck_idx = int(np.argmin(np.abs(z - z_neck)))
+
+        # Volume of left fragment (z < z_neck)
+        z_left = z[:neck_idx + 1]
+        rho_left = rho[:neck_idx + 1]
+        vol_left = self._simpson_fast(np.pi * rho_left ** 2, z_left)
+
+        # Volume of right fragment (z > z_neck)
+        z_right = z[neck_idx:]
+        rho_right = rho[neck_idx:]
+        vol_right = self._simpson_fast(np.pi * rho_right ** 2, z_right)
+
+        return float(vol_left), float(vol_right)

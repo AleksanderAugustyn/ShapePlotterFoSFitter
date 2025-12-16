@@ -116,6 +116,8 @@ class FoSShapePlotter:
         self.lines['beta'] = self.ax_plot.plot([], [], 'r--', label='Beta Approx', lw=2, alpha=0.7)[0]
         self.lines['beta_m'] = self.ax_plot.plot([], [], 'r--', lw=2, alpha=0.7)[0]
         self.lines['ref_sphere'] = self.ax_plot.plot([], [], '--', color='gray', alpha=0.5)[0]
+        self.lines['neck'] = self.ax_plot.plot([], [], 'm-', lw=2, alpha=0.8)[0]
+        self.lines['neck_m'] = self.ax_plot.plot([], [], 'm-', lw=2, alpha=0.8)[0]
 
         self.ax_plot.legend(loc='upper right')
 
@@ -341,11 +343,23 @@ class FoSShapePlotter:
         fos_volume, fos_surface, fos_com = calc.calculate_metrics_fast(self.n_calc)
 
         # 2a. Neck detection for shapes with pronounced necks (a4 + a6 >= 0.4)
-        neck_thickness: float | None = None
+        neck_rho: float | None = None
+        neck_z: float | None = None
+        fragment_ratio_text: str = ""
         a4 = self.params.get_coefficient(4)
         a6 = self.params.get_coefficient(6)
         if a4 + a6 >= 0.4:
-            neck_thickness = calc.find_neck_thickness(self.n_calc)
+            neck_result = calc.find_neck_thickness(self.n_calc)
+            if neck_result is not None:
+                neck_rho, neck_z = neck_result
+                # Calculate fragment volumes
+                vol_left, vol_right = calc.calculate_fragment_volumes(neck_z, self.n_calc)
+                vol_heavier = max(vol_left, vol_right)
+                vol_lighter = min(vol_left, vol_right)
+                if vol_lighter > 1e-10:
+                    vol_heavier = vol_heavier / self._cached_sphere_volume if self._cached_sphere_volume is not None else -1.0
+                    vol_lighter = vol_lighter / self._cached_sphere_volume if self._cached_sphere_volume is not None else -1.0
+                    fragment_ratio_text = f"  Frag vol ratio:  {vol_heavier:.2f}:{vol_lighter:.2f}\n"
 
         # --- Validity Check ---
         # Shape is invalid if rho^2 <= 0 at any interior point (volume/elongation not conserved)
@@ -375,6 +389,14 @@ class FoSShapePlotter:
             self.params.radius0 * np.cos(theta_ref),
             self.params.radius0 * np.sin(theta_ref)
         )
+
+        # Update Neck Line (vertical line from axis to neck surface)
+        if neck_rho is not None and neck_z is not None:
+            self.lines['neck'].set_data([neck_z, neck_z], [0, neck_rho])
+            self.lines['neck_m'].set_data([neck_z, neck_z], [0, -neck_rho])
+        else:
+            self.lines['neck'].set_data([], [])
+            self.lines['neck_m'].set_data([], [])
 
         # Initialize text sections
         spherical_text: str = ""
@@ -517,13 +539,14 @@ class FoSShapePlotter:
         if self.show_text_info:
             sphere_vol, sphere_surf = self._get_sphere_properties()
 
-            # Build FoS cylindrical metrics text with optional neck thickness
+            # Build FoS cylindrical metrics text with optional neck info
             fos_cyl_text = (f"FoS Shape (cylindrical):\n"
                             f"  Volume:  {fos_volume:.2f} fm^3\n"
                             f"  Surface: {fos_surface:.2f} fm^2\n"
                             f"  CoM z:   {fos_com:.2f} fm\n")
-            if neck_thickness is not None:
-                fos_cyl_text += f"  Neck ρ:  {neck_thickness:.2f} fm\n"
+            if neck_rho is not None:
+                fos_cyl_text += f"  Neck ρ:  {neck_rho:.2f} fm\n"
+                fos_cyl_text += fragment_ratio_text
             fos_cyl_text += "\n"
 
             info = (f"FoS Parameters:\n"
