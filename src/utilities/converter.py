@@ -481,3 +481,133 @@ class CylindricalToSphericalConverter:
 
         # Return last attempt even if not convertible
         return conv, shift
+
+    @staticmethod
+    def find_optimal_beta_shift(
+            z_points: np.ndarray,
+            rho_points: np.ndarray,
+            nucleons: int,
+            z_sh: float = 0.0,
+            n_check: int = 7200,
+            search_range: float = 0.5,
+            search_step: float = 0.05,
+            l_max_test: int = 32
+    ) -> Tuple['CylindricalToSphericalConverter', float, dict]:
+        """Find optimal z-shift for beta parameter fitting using combined metric.
+
+        Strategy:
+        1. Find a star-convex shift using the existing method
+        2. Search around that shift to minimize beta fit error
+        3. Evaluate using a quick l_max_test fit
+        4. Optimize combined metric: 1.0*surface_diff + 0.2*rmse + 0.5*L_inf
+
+        Args:
+            z_points: Original z coordinates.
+            rho_points: Original ρ(z) values.
+            nucleons: Number of nucleons (for beta calculation).
+            z_sh: The shape's center-of-mass z-shift (from FoS parameters).
+            n_check: Number of points for calculations.
+            search_range: Range to search around star-convex shift (±fm).
+            search_step: Step size for shift search in fm.
+            l_max_test: Maximum l for quick beta fit evaluation.
+
+        Returns:
+            Tuple of (best converter, best shift, metrics_dict).
+        """
+        from src.parameterizations.beta import BetaDeformationCalculator
+
+        # Step 1: Find base star-convex shift
+        base_conv, base_shift = CylindricalToSphericalConverter.find_star_convex_shift(
+            z_points, rho_points, z_sh, n_check
+        )
+
+        if not base_conv.is_unambiguously_convertible(n_check):
+            print("Warning: Base shift is not star-convex. Results may be unreliable.")
+            return base_conv, base_shift, {}
+
+        # Step 2: Define search range
+        shifts_to_test = np.arange(
+            base_shift - search_range,
+            base_shift + search_range + search_step / 2,
+            search_step
+        )
+
+        best_shift = base_shift
+        best_metric_value = float('inf')
+        best_metrics = {}
+
+        print(f"Optimizing z-shift: testing {len(shifts_to_test)} shifts around {base_shift:.2f} fm...")
+
+        for i, shift in enumerate(shifts_to_test):
+            # Apply shift
+            z_shifted = z_points + shift
+            conv = CylindricalToSphericalConverter(z_shifted, rho_points)
+
+            # Check if still star-convex
+            if not conv.is_unambiguously_convertible(n_check):
+                continue
+
+            # Convert to spherical
+            theta, r_spherical = conv.convert_to_spherical(n_check)
+
+            # Quick beta fit
+            beta_calc = BetaDeformationCalculator(theta, r_spherical, nucleons)
+            betas = beta_calc.calculate_beta_range(1, l_max_test)
+
+            # Reconstruct
+            theta_recon, r_recon = beta_calc.reconstruct_shape(betas, n_check)
+
+            # Calculate reference surface
+            ref_surface = CylindricalToSphericalConverter._calculate_surface_spherical(
+                theta, r_spherical
+            )
+
+            # Calculate fit surface
+            fit_surface = CylindricalToSphericalConverter._calculate_surface_spherical(
+                theta_recon, r_recon
+            )
+
+            # Calculate metrics
+            surface_diff = abs(fit_surface - ref_surface)
+
+            # RMSE between original and reconstructed
+            diff = r_spherical - r_recon
+            rmse = float(np.sqrt(np.mean(diff ** 2)))
+
+            # L-infinity (maximum absolute error)
+            l_inf = float(np.max(np.abs(diff)))
+
+            # Combined metric with specified weights
+            # surface_diff: 1.0, rmse: 0.2, L_inf: 0.5
+            metric_value = 1.0 * surface_diff + 0.2 * rmse + 0.5 * l_inf
+
+            # Track best
+            if metric_value < best_metric_value:
+                best_metric_value = metric_value
+                best_shift = shift
+                best_metrics = {
+                    'surface_diff': surface_diff,
+                    'rmse': rmse,
+                    'l_infinity': l_inf,
+                    'combined_metric': metric_value,
+                    'shift': shift,
+                    'l_max_test': l_max_test
+                }
+
+            # Progress indicator (every 5 shifts)
+            if (i + 1) % 5 == 0 or (i + 1) == len(shifts_to_test):
+                print(f"  Tested {i + 1}/{len(shifts_to_test)} shifts... "
+                      f"Best: {best_shift:.2f} fm (metric: {best_metric_value:.4f})")
+
+        # Step 3: Return the best converter
+        z_best = z_points + best_shift
+        best_conv = CylindricalToSphericalConverter(z_best, rho_points)
+
+        print(f"Optimal shift found: {best_shift:.2f} fm (base was {base_shift:.2f} fm)")
+        if best_metrics:
+            print(f"  Surface Δ:   {best_metrics['surface_diff']:.4f} fm²")
+            print(f"  RMSE:        {best_metrics['rmse']:.4f} fm")
+            print(f"  L_inf:       {best_metrics['l_infinity']:.4f} fm")
+            print(f"  Combined:    {best_metrics['combined_metric']:.4f}")
+
+        return best_conv, best_shift, best_metrics

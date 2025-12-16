@@ -377,11 +377,22 @@ class FoSShapePlotter:
 
         # Only convert to spherical and fit betas when Show Beta is enabled
         if self.show_beta_approx:
-            print(f"Calculating spherical conversion and fitting beta parameters for current shape: Z={self.params.protons}, N={self.params.neutrons}, c={self.params.c_elongation:.2f}, a3={self.params.get_coefficient(3):.2f}, "
-                  f"a4={self.params.get_coefficient(4):.2f}, a5={self.params.get_coefficient(5):.2f}, a6={self.params.get_coefficient(6):.2f}")
-            # Find star-convex shift if needed
-            conv, shift = CylindricalToSphericalConverter.find_star_convex_shift(
-                z_fos_calc, rho_fos_calc, self.params.z_sh, n_check=self.n_calc
+            print(f"Calculating spherical conversion and fitting beta parameters for current shape: "
+                  f"Z={self.params.protons}, N={self.params.neutrons}, "
+                  f"c={self.params.c_elongation:.2f}, a3={self.params.get_coefficient(3):.2f}, "
+                  f"a4={self.params.get_coefficient(4):.2f}, a5={self.params.get_coefficient(5):.2f}, "
+                  f"a6={self.params.get_coefficient(6):.2f}")
+
+            # Use optimized shift finder for better beta fitting
+            conv, shift, opt_metrics = CylindricalToSphericalConverter.find_optimal_beta_shift(
+                z_fos_calc,
+                rho_fos_calc,
+                self.params.nucleons,
+                z_sh=self.params.z_sh,
+                n_check=self.n_calc,
+                search_range=0.5,  # Search ±0.5 fm around base shift
+                search_step=0.05,  # Test every 0.05 fm
+                l_max_test=64  # Quick test with the first N parameters
             )
 
             if conv.is_unambiguously_convertible(self.n_calc):
@@ -399,7 +410,7 @@ class FoSShapePlotter:
                 # Plot the converted spherical shape at its actual location (with z-shift)
                 theta_sph_plot = theta_calc[idx]
                 r_sph_plot = r_fos_sph_calc[idx]
-                z_sph = r_sph_plot * np.cos(theta_sph_plot)  # No shift subtraction - actual position
+                z_sph = r_sph_plot * np.cos(theta_sph_plot)
                 rho_sph = r_sph_plot * np.sin(theta_sph_plot)
                 self.lines['fos_sph'].set_data(z_sph, rho_sph)
                 self.lines['fos_sph_m'].set_data(z_sph, -rho_sph)
@@ -413,6 +424,15 @@ class FoSShapePlotter:
                                            f"  Volume Δ:  {conv_metrics['volume_diff']:.4f} fm^3\n"
                                            f"  Surface Δ: {conv_metrics['surface_diff']:.4f} fm^2\n"
                                            f"  Z-shift:   {conv_metrics['z_shift']:.2f} fm\n\n")
+
+                # Display shift optimization metrics
+                if opt_metrics:
+                    conversion_metrics_text += (f"Shift Optimization (l_max={opt_metrics['l_max_test']}):\n"
+                                                f"  Optimal:     {opt_metrics['shift']:.2f} fm\n"
+                                                f"  Surface Δ:   {opt_metrics['surface_diff']:.4f} fm²\n"
+                                                f"  RMSE:        {opt_metrics['rmse']:.4f} fm\n"
+                                                f"  L_inf:       {opt_metrics['l_infinity']:.4f} fm\n"
+                                                f"  Combined:    {opt_metrics['combined_metric']:.4f}\n\n")
 
                 # Iterative Beta Fitting using the dedicated fitter class
                 # Pass a callback to flush UI events and prevent "Not Responding"
