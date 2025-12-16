@@ -295,3 +295,37 @@ class FoSShapeCalculator:
         vol = FoSShapeCalculator.calculate_volume(z, rho)
         if vol < 1e-10: return 0.0
         return FoSShapeCalculator._simpson_fast(z * np.pi * rho ** 2, z) / vol
+
+    def find_neck_thickness(self, n_points: int = 7200) -> Optional[float]:
+        """Find the radial thickness of the narrowest part of the neck.
+
+        The neck is the minimum of rho(z) between two local maxima (fragment tops).
+        Only meaningful for shapes with a pronounced neck (a4 + a6 >= 0.4).
+
+        Returns:
+            The neck radius (min_rho), or None if no clear neck structure found.
+        """
+        _, rho, _ = self.calculate_shape(n_points)
+
+        # Find local maxima using vectorized comparison
+        # A point is a local max if it's greater than both neighbors
+        is_local_max = np.zeros(n_points, dtype=bool)
+        is_local_max[1:-1] = (rho[1:-1] > rho[:-2]) & (rho[1:-1] > rho[2:])
+
+        maxima_indices = np.where(is_local_max)[0]
+        if len(maxima_indices) < 2:
+            return None
+
+        # Get the two largest maxima by rho value
+        maxima_rho_values = rho[maxima_indices]
+        top_two_local_indices = np.argsort(maxima_rho_values)[-2:]  # Two largest
+        top_two = maxima_indices[top_two_local_indices]
+
+        # Ensure left < right
+        left_idx, right_idx = int(min(top_two)), int(max(top_two))
+
+        # Find minimum rho between these two maxima
+        between_rho = rho[left_idx:right_idx + 1]
+        min_rho = float(np.min(between_rho))
+
+        return min_rho

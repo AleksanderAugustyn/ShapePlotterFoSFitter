@@ -340,6 +340,13 @@ class FoSShapePlotter:
 
         fos_volume, fos_surface, fos_com = calc.calculate_metrics_fast(self.n_calc)
 
+        # 2a. Neck detection for shapes with pronounced necks (a4 + a6 >= 0.4)
+        neck_thickness: float | None = None
+        a4 = self.params.get_coefficient(4)
+        a6 = self.params.get_coefficient(6)
+        if a4 + a6 >= 0.4:
+            neck_thickness = calc.find_neck_thickness(self.n_calc)
+
         # --- Validity Check ---
         # Shape is invalid if rho^2 <= 0 at any interior point (volume/elongation not conserved)
         if not is_valid:
@@ -510,6 +517,15 @@ class FoSShapePlotter:
         if self.show_text_info:
             sphere_vol, sphere_surf = self._get_sphere_properties()
 
+            # Build FoS cylindrical metrics text with optional neck thickness
+            fos_cyl_text = (f"FoS Shape (cylindrical):\n"
+                            f"  Volume:  {fos_volume:.2f} fm^3\n"
+                            f"  Surface: {fos_surface:.2f} fm^2\n"
+                            f"  CoM z:   {fos_com:.2f} fm\n")
+            if neck_thickness is not None:
+                fos_cyl_text += f"  Neck ρ:  {neck_thickness:.2f} fm\n"
+            fos_cyl_text += "\n"
+
             info = (f"FoS Parameters:\n"
                     f"c={self.params.c_elongation:.3f}, q2={self.params.q2:.3f}\n"
                     f"a3={self.params.get_coefficient(3):.3f}, a4={self.params.get_coefficient(4):.3f}\n"
@@ -517,10 +533,7 @@ class FoSShapePlotter:
                     f"Spherical Nucleus:\n"
                     f"  Volume:  {sphere_vol:.2f} fm^3\n"
                     f"  Surface: {sphere_surf:.2f} fm^2\n\n"
-                    f"FoS Shape (cylindrical):\n"
-                    f"  Volume:  {fos_volume:.2f} fm^3\n"
-                    f"  Surface: {fos_surface:.2f} fm^2\n"
-                    f"  CoM z:   {fos_com:.2f} fm\n\n"
+                    + fos_cyl_text
                     + spherical_text + conversion_metrics_text + beta_fit_text + metrics_text)
 
             self.ax_text.text(0, 1, info, va='top', fontfamily='monospace', fontsize=9)

@@ -412,7 +412,18 @@ class IterativeBetaFitter:
         prev_surface_diff: float = float('inf')
         min_improvement: float = 0.0001
 
+        # Track iterations for threshold relaxation
+        iteration_count: int = 0
+        relaxed_threshold: bool = False
+
         while l_max < self.max_beta:
+            iteration_count += 1
+
+            # Relax surface diff threshold after 10 iterations (320 parameters)
+            if iteration_count == 10 and not relaxed_threshold:
+                self.surface_diff_threshold = 4.0
+                relaxed_threshold = True
+                print(f"Relaxing surface diff threshold to 4.0 fm² after 10 iterations")
             # Determine batch range
             l_start = l_max + 1
             l_end = min(l_max + self.batch_size, self.max_beta)
