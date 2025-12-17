@@ -24,6 +24,20 @@ class ConversionMetrics(TypedDict):
     z_shift: float  # Applied z-shift to make shape star-convex in fm
 
 
+class CylindricalComparisonMetrics(TypedDict):
+    """Metrics comparing beta fit to original FoS shape in cylindrical coordinates.
+
+    Note: Volume and surface comparisons are NOT included here because converting
+    from spherical to cylindrical creates non-uniform z-spacing that causes numerical
+    artifacts in surface integrals. Use the spherical-calculated values shown separately.
+    """
+    rmse_rho: float  # RMSE in ρ(z) in fm
+    l_infinity_rho: float  # Maximum |Δρ| in fm
+    l_infinity_z: float  # z-coordinate where L_inf occurs in fm
+    l_infinity_rho_fos: float  # ρ value of original FoS at L_inf location
+    l_infinity_rho_beta: float  # ρ value of beta fit at L_inf location
+
+
 def _simpson_fast(y: FloatArray, x: FloatArray) -> float:
     """Fast implementation of Simpson's rule for strictly odd N (even intervals).
 
@@ -308,24 +322,28 @@ class CylindricalToSphericalConverter:
     ) -> ConversionMetrics:
         """Calculate metrics for the cylindrical → spherical → cylindrical round-trip.
 
+        The converter was built with SHIFTED z-coordinates, so self._spline expects
+        z values in the shifted frame. We compare shapes in this shifted frame.
+
         Args:
-            z_original: Original z coordinates.
+            z_original: Original z coordinates (UNSHIFTED).
             rho_original: Original ρ(z) values.
-            z_shift: The z-shift applied during conversion (for star-convexity).
+            z_shift: The z-shift that was applied when building this converter.
 
         Returns:
             ConversionMetrics with RMSE, L∞, and volume/surface differences.
         """
         n_points = len(z_original)
 
-        # Convert to spherical
+        # Convert to spherical (in the shifted frame where converter lives)
         theta, r_spherical = self.convert_to_spherical(n_points)
 
-        # Convert back to cylindrical (at the spherical grid points)
-        z_roundtrip = r_spherical * np.cos(theta)
+        # Convert back to cylindrical IN THE SHIFTED FRAME (no shift subtraction!)
+        # The spline was built on shifted z, so we stay in that frame for comparison
+        z_roundtrip = r_spherical * np.cos(theta)  # Shifted frame
         rho_roundtrip = r_spherical * np.sin(theta)
 
-        # Calculate volumes using fast Simpson
+        # Calculate volumes using fast Simpson (use original unshifted for vol comparison)
         vol_original = float(_simpson_fast(np.pi * rho_original ** 2, z_original))
         vol_spherical = self._calculate_volume_spherical(theta, r_spherical)
         volume_diff = abs(vol_spherical - vol_original)
@@ -335,14 +353,14 @@ class CylindricalToSphericalConverter:
         surf_spherical = self._calculate_surface_spherical(theta, r_spherical)
         surface_diff = abs(surf_spherical - surf_original)
 
-        # For shape comparison, evaluate original rho at the roundtrip z positions
-        # This is more robust than trying to interpolate roundtrip back to the original grid
+        # Compare shapes in the shifted frame where the spline lives
+        # z_roundtrip is already in the shifted frame, matching self._spline's domain
         rho_expected = np.zeros_like(z_roundtrip)
         in_range = (z_roundtrip >= self.z_min) & (z_roundtrip <= self.z_max)
         if np.any(in_range):
             rho_expected[in_range] = np.maximum(self._spline(z_roundtrip[in_range]), 0.0)
 
-        # Compare: rho_roundtrip should equal rho_expected
+        # Compare: rho_roundtrip should equal rho_expected (both in shifted frame)
         diff = rho_expected - rho_roundtrip
         rmse = float(np.sqrt(np.mean(diff ** 2)))
         l_inf = float(np.max(np.abs(diff)))
@@ -353,6 +371,91 @@ class CylindricalToSphericalConverter:
             volume_diff=volume_diff,
             surface_diff=surface_diff,
             z_shift=z_shift
+        )
+
+    @staticmethod
+    def calculate_cylindrical_comparison(
+            theta_beta: np.ndarray,
+            r_beta: np.ndarray,
+            z_original: np.ndarray,
+            rho_original: np.ndarray,
+            z_shift: float
+    ) -> CylindricalComparisonMetrics:
+        """Compare beta fit to original FoS shape in cylindrical coordinates.
+
+        This is the PRIMARY accuracy metric - it measures how well the entire
+        pipeline (FoS → spherical → beta → cylindrical) reproduces the original shape.
+
+        Args:
+            theta_beta: θ values from beta reconstruction.
+            r_beta: r(θ) values from beta reconstruction.
+            z_original: Original FoS z coordinates.
+            rho_original: Original FoS ρ(z) values.
+            z_shift: The z-shift applied during spherical conversion.
+
+        Returns:
+            CylindricalComparisonMetrics with RMSE, L∞ in ρ, and volume/surface differences.
+        """
+        # Convert beta fit back to cylindrical coordinates
+        z_beta = r_beta * np.cos(theta_beta) - z_shift
+        rho_beta = r_beta * np.sin(theta_beta)
+
+        # Create spline of original FoS for interpolation
+        sort_idx = np.argsort(z_original)
+        z_orig_sorted = z_original[sort_idx]
+        rho_orig_sorted = rho_original[sort_idx]
+
+        # Find valid z range for comparison (where both shapes exist)
+        z_min_orig = float(z_orig_sorted[0])
+        z_max_orig = float(z_orig_sorted[-1])
+        z_min_beta = float(np.min(z_beta))
+        z_max_beta = float(np.max(z_beta))
+
+        z_min_compare = max(z_min_orig, z_min_beta)
+        z_max_compare = min(z_max_orig, z_max_beta)
+
+        # Create spline of original shape
+        spline_original = CubicSpline(z_orig_sorted, rho_orig_sorted, bc_type='natural', extrapolate=False)
+
+        # Mask for beta points within valid comparison range
+        # Exclude very tips (within 0.1 fm of endpoints) to avoid spline boundary artifacts
+        margin = 0.1
+        valid_mask = (z_beta >= z_min_compare + margin) & (z_beta <= z_max_compare - margin)
+
+        if not np.any(valid_mask):
+            # Fallback: no valid comparison points
+            return CylindricalComparisonMetrics(
+                rmse_rho=float('inf'),
+                l_infinity_rho=float('inf'),
+                l_infinity_z=0.0,
+                l_infinity_rho_fos=0.0,
+                l_infinity_rho_beta=0.0
+            )
+
+        z_compare = z_beta[valid_mask]
+        rho_beta_compare = rho_beta[valid_mask]
+
+        # Evaluate original FoS at the beta shape's z positions
+        rho_original_interp = spline_original(z_compare)
+        rho_original_interp = np.maximum(rho_original_interp, 0.0)  # Clamp negatives
+
+        # Calculate shape comparison metrics
+        diff_rho = rho_original_interp - rho_beta_compare
+        rmse_rho = float(np.sqrt(np.mean(diff_rho ** 2)))
+
+        abs_diff = np.abs(diff_rho)
+        l_inf_idx = int(np.argmax(abs_diff))
+        l_infinity_rho = float(abs_diff[l_inf_idx])
+        l_infinity_z = float(z_compare[l_inf_idx])
+        l_infinity_rho_fos = float(rho_original_interp[l_inf_idx])
+        l_infinity_rho_beta = float(rho_beta_compare[l_inf_idx])
+
+        return CylindricalComparisonMetrics(
+            rmse_rho=rmse_rho,
+            l_infinity_rho=l_infinity_rho,
+            l_infinity_z=l_infinity_z,
+            l_infinity_rho_fos=l_infinity_rho_fos,
+            l_infinity_rho_beta=l_infinity_rho_beta
         )
 
     @staticmethod
@@ -525,6 +628,9 @@ class CylindricalToSphericalConverter:
             print("Warning: Base shift is not star-convex. Results may be unreliable.")
             return base_conv, base_shift, {}
 
+        # Calculate original FoS surface (cylindrical - uniformly sampled, so reliable)
+        fos_surface = CylindricalToSphericalConverter._calculate_surface_cylindrical(z_points, rho_points)
+
         # Step 2: Define search range
         shifts_to_test = np.arange(
             base_shift - search_range,
@@ -557,29 +663,20 @@ class CylindricalToSphericalConverter:
             # Reconstruct
             theta_recon, r_recon = beta_calc.reconstruct_shape(betas, n_check)
 
-            # Calculate reference surface
-            ref_surface = CylindricalToSphericalConverter._calculate_surface_spherical(
-                theta, r_spherical
+            # Calculate cylindrical comparison metrics (shape comparison only)
+            cyl_metrics = CylindricalToSphericalConverter.calculate_cylindrical_comparison(
+                theta_recon, r_recon, z_points, rho_points, shift
             )
 
-            # Calculate fit surface
-            fit_surface = CylindricalToSphericalConverter._calculate_surface_spherical(
-                theta_recon, r_recon
-            )
-
-            # Calculate metrics
-            surface_diff = abs(fit_surface - ref_surface)
-
-            # RMSE between original and reconstructed
-            diff = r_spherical - r_recon
-            rmse = float(np.sqrt(np.mean(diff ** 2)))
-
-            # L-infinity (maximum absolute error)
-            l_inf = float(np.max(np.abs(diff)))
+            # Calculate surface difference using spherical coordinates (reliable)
+            beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_recon, r_recon)
+            surface_diff = abs(beta_surface - fos_surface)
 
             # Combined metric with specified weights
             # surface_diff: 1.0, rmse: 0.2, L_inf: 0.5
-            metric_value = 1.0 * surface_diff + 0.2 * rmse + 0.5 * l_inf
+            metric_value = (1.0 * surface_diff +
+                            0.2 * cyl_metrics['rmse_rho'] +
+                            0.5 * cyl_metrics['l_infinity_rho'])
 
             # Track best
             if metric_value < best_metric_value:
@@ -587,8 +684,8 @@ class CylindricalToSphericalConverter:
                 best_shift = shift
                 best_metrics = {
                     'surface_diff': surface_diff,
-                    'rmse': rmse,
-                    'l_infinity': l_inf,
+                    'rmse': cyl_metrics['rmse_rho'],
+                    'l_infinity': cyl_metrics['l_infinity_rho'],
                     'combined_metric': metric_value,
                     'shift': shift,
                     'l_max_test': l_max_test

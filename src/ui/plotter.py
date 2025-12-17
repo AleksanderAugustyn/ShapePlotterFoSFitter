@@ -35,7 +35,7 @@ class FoSShapePlotter:
     def __init__(self) -> None:
         # --- CONFIGURATION ---
         self.n_calc: int = 7200  # High precision for physics/fitting
-        self.n_plot: int = 360  # Sufficient for visual smoothness
+        self.n_plot: int = 7200  # Sufficient for visual smoothness
 
         # Default parameters
         self.params = FoSParameters()
@@ -111,7 +111,7 @@ class FoSShapePlotter:
         # Initialize lines
         self.lines['fos'] = self.ax_plot.plot([], [], 'b-', label='FoS Shape', lw=3)[0]
         self.lines['fos_m'] = self.ax_plot.plot([], [], 'b-', lw=3)[0]
-        self.lines['fos_sph'] = self.ax_plot.plot([], [], 'g--', label='FoS (Spherical)', lw=2, alpha=0.7)[0]
+        self.lines['fos_sph'] = self.ax_plot.plot([], [], 'g--', label='FoS (Shifted Frame)', lw=2, alpha=0.7)[0]
         self.lines['fos_sph_m'] = self.ax_plot.plot([], [], 'g--', lw=2, alpha=0.7)[0]
         self.lines['beta'] = self.ax_plot.plot([], [], 'r-', label='Beta Approx', lw=1.5, alpha=0.7)[0]
         self.lines['beta_m'] = self.ax_plot.plot([], [], 'r-', lw=1.5, alpha=0.7)[0]
@@ -128,7 +128,7 @@ class FoSShapePlotter:
                       markers: list[float] | None = None) -> Slider:
         """
         Creates a slider with decrement/increment buttons and optional limit markers.
-        
+
         Args:
             name: ID for the slider.
             y_pos: Vertical position on the figure.
@@ -404,7 +404,7 @@ class FoSShapePlotter:
         spherical_text: str = ""
         conversion_metrics_text: str = ""
         beta_fit_text: str = ""
-        metrics_text: str = ""
+        beta_vs_fos_text: str = ""
 
         # Only convert to spherical and fit betas when Show Beta is enabled
         if self.show_beta_approx:
@@ -438,10 +438,11 @@ class FoSShapePlotter:
                                   f"  Surface: {sph_surface:.2f} fm^2\n"
                                   f"  CoM z:   {sph_com:.2f} fm\n\n")
 
-                # Plot the converted spherical shape at its actual location (with z-shift)
+                # Plot the converted spherical shape in the SHIFTED frame where conversion happens
+                # (don't subtract shift - show where the origin actually is for the spherical representation)
                 theta_sph_plot = theta_calc[idx]
                 r_sph_plot = r_fos_sph_calc[idx]
-                z_sph = r_sph_plot * np.cos(theta_sph_plot)
+                z_sph = r_sph_plot * np.cos(theta_sph_plot)  # Shifted frame (origin at neck)
                 rho_sph = r_sph_plot * np.sin(theta_sph_plot)
                 self.lines['fos_sph'].set_data(z_sph, rho_sph)
                 self.lines['fos_sph_m'].set_data(z_sph, -rho_sph)
@@ -489,21 +490,26 @@ class FoSShapePlotter:
                 beta_com = BetaDeformationCalculator.calculate_center_of_mass_spherical(
                     fit_result.theta_reconstructed, fit_result.r_reconstructed
                 )
-                beta_fit_text = (f"Beta Fit Shape (l_max={fit_result.l_max}):\n"
+
+                status = "Converged" if fit_result.converged else "Max l reached"
+                beta_fit_text = (f"Beta Fit Shape (l_max={fit_result.l_max}, {status}):\n"
                                  f"  Volume:  {beta_volume:.2f} fm^3\n"
                                  f"  Surface: {beta_surface:.2f} fm^2\n"
                                  f"  CoM z:   {beta_com:.2f} fm\n\n")
 
-                # Build metrics text with convergence status
-                status = "Converged" if fit_result.converged else "Max l reached"
-                l_inf_angle_deg = np.degrees(fit_result.errors['l_infinity_angle'])
-                metrics_text = (f"Beta Fit Metrics (N={self.n_calc}, {status}):\n"
-                                f"  l_max:       {fit_result.l_max}\n"
-                                f"  RMSE:        {fit_result.errors['rmse']:.4f} fm\n"
-                                f"  Chi^2:       {fit_result.errors['chi_squared']:.4f}\n"
-                                f"  Chi^2 (Red): {fit_result.errors['chi_squared_reduced']:.6f}\n"
-                                f"  L_inf:       {fit_result.errors['l_infinity']:.4f} fm @ {l_inf_angle_deg:.2f}°\n"
-                                f"  Surface Δ:   {fit_result.surface_diff:.4f} fm^2")
+                # Calculate cylindrical comparison metrics (Beta vs Original FoS)
+                cyl_comparison = CylindricalToSphericalConverter.calculate_cylindrical_comparison(
+                    fit_result.theta_reconstructed,
+                    fit_result.r_reconstructed,
+                    z_fos_calc,
+                    rho_fos_calc,
+                    shift
+                )
+
+                # Build the primary accuracy metrics text
+                beta_vs_fos_text = (f"Beta vs Original FoS (Cylindrical):\n"
+                                    f"  RMSE ρ:    {cyl_comparison['rmse_rho']:.4f} fm\n"
+                                    f"  L_inf ρ:   {cyl_comparison['l_infinity_rho']:.4f} fm @ z={cyl_comparison['l_infinity_z']:.2f} fm")
 
                 # Reconstruct for Plotting (LOW PRECISION via Downsampling)
                 theta_plot = fit_result.theta_reconstructed[idx]
@@ -515,25 +521,17 @@ class FoSShapePlotter:
                 self.lines['beta'].set_data(z_beta, rho_beta)
                 self.lines['beta_m'].set_data(z_beta, -rho_beta)
 
-                # Draw L_inf marker connecting FoS and Beta points at max error angle
-                l_inf_angle = fit_result.errors['l_infinity_angle']
-                idx_linf = np.argmin(np.abs(theta_calc - l_inf_angle))
+                # Draw L_inf marker at the location of maximum error IN CYLINDRICAL COORDINATES
+                # Use the rho values directly from the comparison (no recomputation needed)
+                l_inf_z = cyl_comparison['l_infinity_z']
+                rho_fos_at_linf = cyl_comparison['l_infinity_rho_fos']
+                rho_beta_at_linf = cyl_comparison['l_infinity_rho_beta']
 
-                # FoS point at L_inf angle
-                r_fos_at_linf = r_fos_sph_calc[idx_linf]
-                z_fos_linf = r_fos_at_linf * np.cos(l_inf_angle) - shift
-                rho_fos_linf = r_fos_at_linf * np.sin(l_inf_angle)
-
-                # Beta point at L_inf angle
-                r_beta_at_linf = fit_result.r_reconstructed[idx_linf]
-                z_beta_linf = r_beta_at_linf * np.cos(l_inf_angle) - shift
-                rho_beta_linf = r_beta_at_linf * np.sin(l_inf_angle)
-
-                # Draw connecting line with markers
-                self.lines['l_inf_marker'].set_data([z_fos_linf, z_beta_linf],
-                                                    [rho_fos_linf, rho_beta_linf])
-                self.lines['l_inf_marker_m'].set_data([z_fos_linf, z_beta_linf],
-                                                      [-rho_fos_linf, -rho_beta_linf])
+                # Draw connecting line with markers at the L_inf location
+                self.lines['l_inf_marker'].set_data([l_inf_z, l_inf_z],
+                                                    [rho_fos_at_linf, rho_beta_at_linf])
+                self.lines['l_inf_marker_m'].set_data([l_inf_z, l_inf_z],
+                                                      [-rho_fos_at_linf, -rho_beta_at_linf])
             else:
                 spherical_text = "Shape not convertible to spherical.\n\n"
                 self.lines['fos_sph'].set_data([], [])
@@ -584,7 +582,7 @@ class FoSShapePlotter:
                     f"  Volume:  {sphere_vol:.2f} fm^3\n"
                     f"  Surface: {sphere_surf:.2f} fm^2\n\n"
                     + fos_cyl_text
-                    + spherical_text + conversion_metrics_text + beta_fit_text + metrics_text)
+                    + spherical_text + conversion_metrics_text + beta_fit_text + beta_vs_fos_text)
 
             self.ax_text.text(0, 1, info, va='top', fontfamily='monospace', fontsize=9)
 
