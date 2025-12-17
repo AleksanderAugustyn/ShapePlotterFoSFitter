@@ -555,7 +555,7 @@ class IterativeBetaFitter:
             if iteration_count == RELAX_ITERATION_THRESHOLD and not relaxed_threshold:
                 self.surface_diff_threshold = SURFACE_DIFF_THRESHOLD_RELAXED
                 relaxed_threshold = True
-                print(f"Relaxing surface diff threshold to {SURFACE_DIFF_THRESHOLD_RELAXED:.1f} fm² after 10 iterations")
+                print(f"Relaxing surface diff threshold to {SURFACE_DIFF_THRESHOLD_RELAXED:.1f} fm² after {RELAX_ITERATION_THRESHOLD:.0f} iterations")
 
             # Determine batch range
             l_start = l_max + 1

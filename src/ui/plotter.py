@@ -591,8 +591,9 @@ class FoSShapePlotter:
             fos_cyl_text += "\n"
 
             info = (f"FoS Parameters:\n"
-                    f"c={self.params.c_elongation:.3f}, q2={self.params.q2:.3f}, a2={self.params.a2:.3f}\n"
-                    f"a3={self.params.get_coefficient(3):.3f}, a4={self.params.get_coefficient(4):.3f}\n"
+                    f"c={self.params.c_elongation:.2f}, q2={self.params.q2:.4f}, a2={self.params.a2:.4f}\n"
+                    f"a3={self.params.get_coefficient(3):.2f}, a4={self.params.get_coefficient(4):.2f}\n"
+                    f"a5={self.params.get_coefficient(5):.2f}, a6={self.params.get_coefficient(6):.2f}\n"
                     f"R0={self.params.radius0:.3f}\n"
                     f"Spherical Nucleus:\n"
                     f"  Volume:  {sphere_vol:.2f} fm^3\n"
