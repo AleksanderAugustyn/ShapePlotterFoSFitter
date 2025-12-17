@@ -11,18 +11,31 @@ from typing import Callable, Dict, Final, Optional, Tuple, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.interpolate import CubicSpline
 from scipy.special import eval_legendre
 
 FloatArray = NDArray[np.float64]
 
 
 class ShapeComparisonMetrics(TypedDict):
-    """Metrics for comparing original and reconstructed shapes."""
+    """Metrics for comparing original and reconstructed shapes in spherical coordinates."""
     rmse: float
     chi_squared: float  # Raw Chi-Squared
     chi_squared_reduced: float  # Reduced Chi-Squared (Chi^2 / DoF)
     l_infinity: float
     l_infinity_angle: float  # Angle (radians) where L_infinity occurs
+
+
+class CylindricalComparisonMetrics(TypedDict):
+    """Metrics comparing beta fit to original FoS shape in cylindrical coordinates.
+
+    This is the primary accuracy metric - it measures how well the entire
+    pipeline (FoS → spherical → beta → cylindrical) reproduces the original shape.
+    """
+    rmse_rho: float  # RMSE in ρ(z) in fm
+    l_infinity_rho: float  # Maximum |Δρ| in fm
+    l_infinity_z: float  # z-coordinate where L_inf occurs in fm
+    surface_diff: float  # Absolute surface difference in fm²
 
 
 @dataclass
@@ -32,8 +45,7 @@ class BetaFitResult:
     l_max: int
     theta_reconstructed: np.ndarray
     r_reconstructed: np.ndarray
-    errors: ShapeComparisonMetrics
-    surface_diff: float
+    errors: CylindricalComparisonMetrics  # Uses cylindrical comparison for consistency
     converged: bool
 
 
@@ -368,6 +380,7 @@ class IterativeBetaFitter:
     - Reuses BetaDeformationCalculator instance across iterations.
     - Only calculates new beta parameters for each batch (not full recalculation).
     - Uses optimized reconstruction and metric calculations.
+    - Compares against original FoS shape in cylindrical coordinates for consistency.
     """
 
     def __init__(
@@ -383,8 +396,8 @@ class IterativeBetaFitter:
         Args:
             batch_size: Number of beta parameters to add per iteration.
             max_beta: Maximum number of beta parameters for fitting.
-            rmse_threshold: RMSE convergence threshold in fm.
-            linf_threshold: L-infinity convergence threshold in fm.
+            rmse_threshold: RMSE convergence threshold in fm (cylindrical).
+            linf_threshold: L-infinity convergence threshold in fm (cylindrical).
             surface_diff_threshold: Surface area difference threshold in fm².
         """
         self.batch_size = batch_size
@@ -393,10 +406,100 @@ class IterativeBetaFitter:
         self.linf_threshold = linf_threshold
         self.surface_diff_threshold = surface_diff_threshold
 
+    @staticmethod
+    def _calculate_cylindrical_comparison(
+            theta_beta: np.ndarray,
+            r_beta: np.ndarray,
+            z_original: np.ndarray,
+            rho_original: np.ndarray,
+            z_shift: float,
+            reference_surface: float
+    ) -> CylindricalComparisonMetrics:
+        """Compare beta fit to original FoS shape in cylindrical coordinates.
+
+        This is the PRIMARY accuracy metric - it measures how well the entire
+        pipeline (FoS → spherical → beta → cylindrical) reproduces the original shape.
+
+        Args:
+            theta_beta: θ values from beta reconstruction.
+            r_beta: r(θ) values from beta reconstruction.
+            z_original: Original FoS z coordinates.
+            rho_original: Original FoS ρ(z) values.
+            z_shift: The z-shift applied during spherical conversion.
+            reference_surface: Original FoS surface area for surface_diff calculation.
+
+        Returns:
+            CylindricalComparisonMetrics with RMSE, L∞ in ρ, and surface difference.
+        """
+        # Convert beta fit back to cylindrical coordinates
+        z_beta = r_beta * np.cos(theta_beta) - z_shift
+        rho_beta = r_beta * np.sin(theta_beta)
+
+        # Create spline of original FoS for interpolation
+        sort_idx = np.argsort(z_original)
+        z_orig_sorted = z_original[sort_idx]
+        rho_orig_sorted = rho_original[sort_idx]
+
+        # Find valid z range for comparison (where both shapes exist)
+        z_min_orig = float(z_orig_sorted[0])
+        z_max_orig = float(z_orig_sorted[-1])
+        z_min_beta = float(np.min(z_beta))
+        z_max_beta = float(np.max(z_beta))
+
+        z_min_compare = max(z_min_orig, z_min_beta)
+        z_max_compare = min(z_max_orig, z_max_beta)
+
+        # Create spline of original shape
+        spline_original = CubicSpline(z_orig_sorted, rho_orig_sorted, bc_type='natural', extrapolate=False)
+
+        # Mask for beta points within valid comparison range
+        # Exclude very tips (within 0.1 fm of endpoints) to avoid spline boundary artifacts
+        margin = 0.1
+        valid_mask = (z_beta >= z_min_compare + margin) & (z_beta <= z_max_compare - margin)
+
+        if not np.any(valid_mask):
+            # Fallback: no valid comparison points
+            return CylindricalComparisonMetrics(
+                rmse_rho=float('inf'),
+                l_infinity_rho=float('inf'),
+                l_infinity_z=0.0,
+                surface_diff=float('inf')
+            )
+
+        z_compare = z_beta[valid_mask]
+        rho_beta_compare = rho_beta[valid_mask]
+
+        # Evaluate original FoS at the beta shape's z positions
+        rho_original_interp = spline_original(z_compare)
+        rho_original_interp = np.maximum(rho_original_interp, 0.0)  # Clamp negatives
+
+        # Calculate shape comparison metrics
+        diff_rho = rho_original_interp - rho_beta_compare
+        rmse_rho = float(np.sqrt(np.mean(diff_rho ** 2)))
+
+        abs_diff = np.abs(diff_rho)
+        l_inf_idx = int(np.argmax(abs_diff))
+        l_infinity_rho = float(abs_diff[l_inf_idx])
+        l_infinity_z = float(z_compare[l_inf_idx])
+
+        # Calculate surface difference using spherical coordinates (reliable)
+        beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_beta, r_beta)
+        surface_diff = abs(beta_surface - reference_surface)
+
+        return CylindricalComparisonMetrics(
+            rmse_rho=rmse_rho,
+            l_infinity_rho=l_infinity_rho,
+            l_infinity_z=l_infinity_z,
+            surface_diff=surface_diff
+        )
+
     def fit(
             self,
             theta: np.ndarray,
             r_original: np.ndarray,
+            z_fos: np.ndarray,
+            rho_fos: np.ndarray,
+            z_shift: float,
             reference_surface: float,
             nucleons: int,
             n_points: int = 7200,
@@ -405,9 +508,12 @@ class IterativeBetaFitter:
         """Iteratively fit beta parameters until convergence criteria are met.
 
         Args:
-            theta: Theta values for the original shape.
-            r_original: r(θ) values for the original shape.
-            reference_surface: Reference surface area for convergence check.
+            theta: Theta values for the spherical representation (converted from FoS).
+            r_original: r(θ) values for the spherical representation.
+            z_fos: Original FoS z coordinates (for cylindrical comparison).
+            rho_fos: Original FoS ρ(z) values (for cylindrical comparison).
+            z_shift: The z-shift applied during spherical conversion.
+            reference_surface: Reference surface area (original FoS) for convergence check.
             nucleons: Number of nucleons (A).
             n_points: Number of points for shape reconstruction.
             progress_callback: Optional callback to invoke after each iteration.
@@ -423,14 +529,12 @@ class IterativeBetaFitter:
         beta_parameters: Dict[int, float] = {}
         theta_reconstructed: np.ndarray = np.array([])
         r_reconstructed: np.ndarray = np.array([])
-        errors: ShapeComparisonMetrics = {
-            'rmse': float('inf'),
-            'chi_squared': float('inf'),
-            'chi_squared_reduced': float('inf'),
-            'l_infinity': float('inf'),
-            'l_infinity_angle': 0.0,
+        errors: CylindricalComparisonMetrics = {
+            'rmse_rho': float('inf'),
+            'l_infinity_rho': float('inf'),
+            'l_infinity_z': 0.0,
+            'surface_diff': float('inf'),
         }
-        surface_diff: float = float('inf')
 
         # Track previous values for stagnation detection
         prev_rmse: float = float('inf')
@@ -450,6 +554,7 @@ class IterativeBetaFitter:
                 self.surface_diff_threshold = 4.0
                 relaxed_threshold = True
                 print(f"Relaxing surface diff threshold to 4.0 fm² after 10 iterations")
+
             # Determine batch range
             l_start = l_max + 1
             l_end = min(l_max + self.batch_size, self.max_beta)
@@ -481,16 +586,15 @@ class IterativeBetaFitter:
             # If valid, commit changes
             beta_parameters = test_betas
 
-            errors = BetaDeformationCalculator.calculate_errors(
-                r_original, r_reconstructed, theta_reconstructed, n_params=l_max
+            # Calculate cylindrical comparison metrics (consistent with plotter display)
+            errors = self._calculate_cylindrical_comparison(
+                theta_reconstructed, r_reconstructed,
+                z_fos, rho_fos, z_shift, reference_surface
             )
-            beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(
-                theta_reconstructed, r_reconstructed
-            )
-            surface_diff = abs(beta_surface - reference_surface)
 
-            rmse = errors['rmse']
-            l_inf = errors['l_infinity']
+            rmse = errors['rmse_rho']
+            l_inf = errors['l_infinity_rho']
+            surface_diff = errors['surface_diff']
 
             if (rmse < self.rmse_threshold and
                     l_inf < self.linf_threshold and
@@ -514,14 +618,14 @@ class IterativeBetaFitter:
             prev_linf = l_inf
             prev_surface_diff = surface_diff
 
-            print(f"RMSE: {rmse:.4f} fm, L-infinity: {l_inf:.4f} fm, Surface Diff: {surface_diff:.4f} fm²")
+            print(f"RMSE ρ: {rmse:.4f} fm, L_inf ρ: {l_inf:.4f} fm, Surface Diff: {surface_diff:.4f} fm²")
 
             # Allow UI to process events
             if progress_callback is not None:
                 progress_callback()
 
         status = "converged" if converged else f"reached max l_max={l_max}"
-        print(f"RMSE: {errors['rmse']:.4f} fm, L-infinity: {errors['l_infinity']:.4f} fm, Surface Diff: {surface_diff:.4f} fm²")
+        print(f"RMSE ρ: {errors['rmse_rho']:.4f} fm, L_inf ρ: {errors['l_infinity_rho']:.4f} fm, Surface Diff: {errors['surface_diff']:.4f} fm²")
         print(f"Beta fitting completed: {status}")
 
         return BetaFitResult(
@@ -530,6 +634,5 @@ class IterativeBetaFitter:
             theta_reconstructed=theta_reconstructed,
             r_reconstructed=r_reconstructed,
             errors=errors,
-            surface_diff=surface_diff,
             converged=converged
         )

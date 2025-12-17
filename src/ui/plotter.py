@@ -35,7 +35,7 @@ class FoSShapePlotter:
     def __init__(self) -> None:
         # --- CONFIGURATION ---
         self.n_calc: int = 7200  # High precision for physics/fitting
-        self.n_plot: int = 7200  # Sufficient for visual smoothness
+        self.n_plot: int = 720  # Sufficient for visual smoothness
 
         # Default parameters
         self.params = FoSParameters()
@@ -294,7 +294,6 @@ class FoSShapePlotter:
         betas = result.beta_parameters
         l_max = result.l_max
         errors = result.errors
-        surface_diff = result.surface_diff
         converged = result.converged
 
         status = "Converged" if converged else "Max l reached"
@@ -306,12 +305,11 @@ class FoSShapePlotter:
               f"a4={self.params.get_coefficient(4):.4f}, a5={self.params.get_coefficient(5):.4f}, "
               f"a6={self.params.get_coefficient(6):.4f}")
         print("-" * 50)
-        print(f"l_max:     {l_max}")
+        print(f"l_max:       {l_max}")
         if errors:
-            print(f"RMSE:      {errors['rmse']:.4f} fm")
-            print(f"L_inf:     {errors['l_infinity']:.4f} fm @ {np.degrees(errors['l_infinity_angle']):.2f}°")
-        if surface_diff is not None:
-            print(f"Surface Δ: {surface_diff:.4f} fm^2")
+            print(f"RMSE ρ:      {errors['rmse_rho']:.4f} fm")
+            print(f"L_inf ρ:     {errors['l_infinity_rho']:.4f} fm @ z={errors['l_infinity_z']:.2f} fm")
+            print(f"Surface Δ:   {errors['surface_diff']:.4f} fm²")
         print("-" * 50)
         for l, val in sorted(betas.items()):
             print(f"beta_{l:2d} = {val:+.6f}")
@@ -462,8 +460,8 @@ class FoSShapePlotter:
                     conversion_metrics_text += (f"Shift Optimization (l_max={opt_metrics['l_max_test']}):\n"
                                                 f"  Optimal:     {opt_metrics['shift']:.2f} fm\n"
                                                 f"  Surface Δ:   {opt_metrics['surface_diff']:.4f} fm²\n"
-                                                f"  RMSE:        {opt_metrics['rmse']:.4f} fm\n"
-                                                f"  L_inf:       {opt_metrics['l_infinity']:.4f} fm\n"
+                                                f"  RMSE ρ:      {opt_metrics['rmse']:.4f} fm\n"
+                                                f"  L_inf ρ:     {opt_metrics['l_infinity']:.4f} fm\n"
                                                 f"  Combined:    {opt_metrics['combined_metric']:.4f}\n\n")
 
                 # Iterative Beta Fitting using the dedicated fitter class
@@ -472,8 +470,11 @@ class FoSShapePlotter:
                     if self.fig is not None:
                         self.fig.canvas.flush_events()
 
+                # Pass original FoS data for cylindrical comparison (consistent metrics)
                 fit_result = self.beta_fitter.fit(
-                    theta_calc, r_fos_sph_calc, sph_surface, self.params.nucleons, self.n_calc,
+                    theta_calc, r_fos_sph_calc,
+                    z_fos_calc, rho_fos_calc, shift,  # Original FoS data for comparison
+                    fos_surface, self.params.nucleons, self.n_calc,
                     progress_callback=flush_events
                 )
 
@@ -497,21 +498,15 @@ class FoSShapePlotter:
                                  f"  Surface: {beta_surface:.2f} fm^2\n"
                                  f"  CoM z:   {beta_com:.2f} fm\n\n")
 
-                # Calculate cylindrical comparison metrics (Beta vs Original FoS)
-                cyl_comparison = CylindricalToSphericalConverter.calculate_cylindrical_comparison(
-                    fit_result.theta_reconstructed,
-                    fit_result.r_reconstructed,
-                    z_fos_calc,
-                    rho_fos_calc,
-                    shift
-                )
+                # Use the errors from fit_result (already calculated as cylindrical comparison)
+                errors = fit_result.errors
 
                 # Build the primary accuracy metrics text
                 beta_vs_fos_text = (f"Beta vs Original FoS (Cylindrical):\n"
-                                    f"  RMSE ρ:    {cyl_comparison['rmse_rho']:.4f} fm\n"
-                                    f"  L_inf ρ:   {cyl_comparison['l_infinity_rho']:.4f} fm @ z={cyl_comparison['l_infinity_z']:.2f} fm\n"
+                                    f"  RMSE ρ:    {errors['rmse_rho']:.4f} fm\n"
+                                    f"  L_inf ρ:   {errors['l_infinity_rho']:.4f} fm @ z={errors['l_infinity_z']:.2f} fm\n"
                                     f"  Volume Δ:  {abs(beta_volume - fos_volume):.4f} fm^3\n"
-                                    f"  Surface Δ: {abs(beta_surface - fos_surface):.4f} fm^2\n")
+                                    f"  Surface Δ: {errors['surface_diff']:.4f} fm^2\n")
 
                 # Reconstruct for Plotting (downsampled for efficiency)
                 theta_plot = fit_result.theta_reconstructed[idx]
@@ -524,7 +519,15 @@ class FoSShapePlotter:
                 self.lines['beta_m'].set_data(z_beta, -rho_beta)
 
                 # Draw L_inf marker at the location of maximum error IN CYLINDRICAL COORDINATES
-                # Use the rho values directly from the comparison (no recomputation needed)
+                # Need to get detailed comparison for the marker positions
+                cyl_comparison = CylindricalToSphericalConverter.calculate_cylindrical_comparison(
+                    fit_result.theta_reconstructed,
+                    fit_result.r_reconstructed,
+                    z_fos_calc,
+                    rho_fos_calc,
+                    shift
+                )
+
                 l_inf_z = cyl_comparison['l_infinity_z']
                 rho_fos_at_linf = cyl_comparison['l_infinity_rho_fos']
                 rho_beta_at_linf = cyl_comparison['l_infinity_rho_beta']
