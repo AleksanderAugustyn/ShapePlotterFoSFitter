@@ -322,7 +322,7 @@ class CylindricalToSphericalConverter:
         theta, r_spherical = self.convert_to_spherical(n_points)
 
         # Convert back to cylindrical (at the spherical grid points)
-        z_roundtrip = r_spherical * np.cos(theta) - z_shift
+        z_roundtrip = r_spherical * np.cos(theta)
         rho_roundtrip = r_spherical * np.sin(theta)
 
         # Calculate volumes using fast Simpson
