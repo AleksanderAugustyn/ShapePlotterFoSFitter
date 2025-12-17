@@ -194,7 +194,7 @@ class FoSShapeCalculator:
 
         return f, f_prime
 
-    def calculate_shape(self, n_points: int = 720) -> Tuple[FloatArray, FloatArray, bool]:
+    def calculate_shape(self, n_points: int = 7200) -> Tuple[FloatArray, FloatArray, bool]:
         """Calculates z and rho using vectorized operations."""
         z0 = self.params.z0
         z_sh = self.params.z_sh
@@ -300,7 +300,7 @@ class FoSShapeCalculator:
         """Find the radial thickness and z-position of the narrowest part of the neck.
 
         The neck is the minimum of rho(z) between two local maxima (fragment tops).
-        Only meaningful for shapes with a pronounced neck (a4 + a6 >= 0.4).
+        Only meaningful for shapes with a pronounced neck.
 
         Returns:
             Tuple of (rho_neck, z_neck), or None if no clear neck structure is found.

@@ -342,13 +342,13 @@ class FoSShapePlotter:
 
         fos_volume, fos_surface, fos_com = calc.calculate_metrics_fast(self.n_calc)
 
-        # 2a. Neck detection for shapes with pronounced necks (a4 + a6 >= 0.4)
+        # 2a. Neck detection for shapes with pronounced necks (a4 + a6 >= 0.3)
         neck_rho: float | None = None
         neck_z: float | None = None
         fragment_ratio_text: str = ""
         a4 = self.params.get_coefficient(4)
         a6 = self.params.get_coefficient(6)
-        if a4 + a6 >= 0.4:
+        if a4 + a6 >= 0.3:
             neck_result = calc.find_neck_thickness(self.n_calc)
             if neck_result is not None:
                 neck_rho, neck_z = neck_result
