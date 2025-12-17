@@ -22,6 +22,7 @@ class ShapeComparisonMetrics(TypedDict):
     chi_squared: float  # Raw Chi-Squared
     chi_squared_reduced: float  # Reduced Chi-Squared (Chi^2 / DoF)
     l_infinity: float
+    l_infinity_angle: float  # Angle (radians) where L_infinity occurs
 
 
 @dataclass
@@ -42,6 +43,7 @@ MAX_BETA: Final[int] = 512  # Maximum number of beta parameters for fitting
 RMSE_THRESHOLD: Final[float] = 0.2  # RMSE convergence threshold in fm
 LINF_THRESHOLD: Final[float] = 0.4  # L-infinity convergence threshold in fm
 SURFACE_DIFF_THRESHOLD: Final[float] = 0.5  # Surface area difference threshold in fm^2
+POLE_EXCLUSION_DEG: Final[float] = 0.0  # Exclude X° at each pole to avoid singularities
 
 
 def _simpson_fast(y: FloatArray, x: FloatArray) -> float:
@@ -100,15 +102,22 @@ class BetaDeformationCalculator:
     - Batch beta parameter calculation using matrix operations.
     """
 
-    def __init__(self, theta: np.ndarray, radius: np.ndarray, number_of_nucleons: int):
-        self.theta = np.asarray(theta, dtype=np.float64)
-        self.r = np.asarray(radius, dtype=np.float64)
+    def __init__(self, theta: np.ndarray, radius: np.ndarray, number_of_nucleons: int,
+                 pole_exclusion_deg: float = POLE_EXCLUSION_DEG):
+        theta = np.asarray(theta, dtype=np.float64)
+        radius = np.asarray(radius, dtype=np.float64)
         self.radius0 = 1.16 * number_of_nucleons ** (1 / 3)
 
         # Sort by theta
-        sort_idx = np.argsort(self.theta)
-        self.theta = self.theta[sort_idx]
-        self.r = self.r[sort_idx]
+        sort_idx = np.argsort(theta)
+        theta = theta[sort_idx]
+        radius = radius[sort_idx]
+
+        # Apply pole exclusion mask to avoid fitting singularities at θ=0 and θ=π
+        pole_exclusion_rad = np.radians(pole_exclusion_deg)
+        mask = (theta >= pole_exclusion_rad) & (theta <= np.pi - pole_exclusion_rad)
+        self.theta = theta[mask]
+        self.r = radius[mask]
 
         # Pre-compute trigonometric values once
         self.sin_theta = np.sin(self.theta)
@@ -297,34 +306,49 @@ class BetaDeformationCalculator:
     @staticmethod
     def calculate_errors(r_original: np.ndarray,
                          r_reconstructed: np.ndarray,
-                         n_params: int = 0) -> ShapeComparisonMetrics:
+                         theta: np.ndarray,
+                         n_params: int = 0,
+                         pole_exclusion_deg: float = POLE_EXCLUSION_DEG) -> ShapeComparisonMetrics:
         """
         Calculates RMSE, Raw Chi-Squared, Reduced Chi-Squared, and L-infinity errors.
 
         Args:
             r_original: The reference radial values.
             r_reconstructed: The radial values from the beta expansion.
+            theta: The theta angle array (radians) corresponding to r values.
             n_params: Number of fitted parameters (used for Degrees of Freedom).
                       If 0, DoF = N_points.
+            pole_exclusion_deg: Degrees to exclude at each pole (θ=0 and θ=π).
         """
-        diff = r_original - r_reconstructed
+        # Apply pole exclusion mask to avoid singularities at θ=0 and θ=π
+        pole_exclusion_rad = np.radians(pole_exclusion_deg)
+        mask = (theta >= pole_exclusion_rad) & (theta <= np.pi - pole_exclusion_rad)
+
+        r_orig_masked = r_original[mask]
+        r_recon_masked = r_reconstructed[mask]
+        theta_masked = theta[mask]
+
+        diff = r_orig_masked - r_recon_masked
         squared_diff = diff ** 2
 
         # RMSE
         rmse = float(np.sqrt(np.mean(squared_diff)))
 
-        # L-infinity (Max absolute error)
-        l_inf = float(np.max(np.abs(diff)))
+        # L-infinity (Max absolute error) and angle where it occurs
+        abs_diff = np.abs(diff)
+        max_idx = np.argmax(abs_diff)
+        l_inf = float(abs_diff[max_idx])
+        l_inf_angle = float(theta_masked[max_idx])
 
         # Raw Chi-Squared (Pearson-like): sum((Obs - Exp)^2 / Exp)
         # We use r_original as the expected value in the denominator for weighting.
         # Avoid division by zero by clamping the denominator.
-        safe_r = np.maximum(r_original, 1e-10)
+        safe_r = np.maximum(r_orig_masked, 1e-10)
         chi_sq = float(np.sum(squared_diff / safe_r))
 
         # Reduced Chi-Squared: Chi^2 / DoF
         # Degrees of Freedom = N_points - N_parameters
-        n_points = len(r_original)
+        n_points = len(r_orig_masked)
         dof = max(1, n_points - n_params)
         chi_sq_red = chi_sq / dof
 
@@ -332,7 +356,8 @@ class BetaDeformationCalculator:
             "rmse": rmse,
             "chi_squared": chi_sq,
             "chi_squared_reduced": chi_sq_red,
-            "l_infinity": l_inf
+            "l_infinity": l_inf,
+            "l_infinity_angle": l_inf_angle
         }
 
 
@@ -403,6 +428,7 @@ class IterativeBetaFitter:
             'chi_squared': float('inf'),
             'chi_squared_reduced': float('inf'),
             'l_infinity': float('inf'),
+            'l_infinity_angle': 0.0,
         }
         surface_diff: float = float('inf')
 
@@ -456,7 +482,7 @@ class IterativeBetaFitter:
             beta_parameters = test_betas
 
             errors = BetaDeformationCalculator.calculate_errors(
-                r_original, r_reconstructed, n_params=l_max
+                r_original, r_reconstructed, theta_reconstructed, n_params=l_max
             )
             beta_surface = BetaDeformationCalculator.calculate_surface_area_spherical(
                 theta_reconstructed, r_reconstructed

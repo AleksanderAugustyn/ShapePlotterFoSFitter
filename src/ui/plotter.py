@@ -109,15 +109,17 @@ class FoSShapePlotter:
         self.ax_plot.set_ylabel('ρ (fm)')
 
         # Initialize lines
-        self.lines['fos'] = self.ax_plot.plot([], [], 'b-', label='FoS Shape', lw=2)[0]
-        self.lines['fos_m'] = self.ax_plot.plot([], [], 'b-', lw=2)[0]
-        self.lines['fos_sph'] = self.ax_plot.plot([], [], 'g-', label='FoS (Spherical)', lw=2, alpha=0.7)[0]
-        self.lines['fos_sph_m'] = self.ax_plot.plot([], [], 'g-', lw=2, alpha=0.7)[0]
-        self.lines['beta'] = self.ax_plot.plot([], [], 'r--', label='Beta Approx', lw=2, alpha=0.7)[0]
-        self.lines['beta_m'] = self.ax_plot.plot([], [], 'r--', lw=2, alpha=0.7)[0]
+        self.lines['fos'] = self.ax_plot.plot([], [], 'b-', label='FoS Shape', lw=3)[0]
+        self.lines['fos_m'] = self.ax_plot.plot([], [], 'b-', lw=3)[0]
+        self.lines['fos_sph'] = self.ax_plot.plot([], [], 'g--', label='FoS (Spherical)', lw=2, alpha=0.7)[0]
+        self.lines['fos_sph_m'] = self.ax_plot.plot([], [], 'g--', lw=2, alpha=0.7)[0]
+        self.lines['beta'] = self.ax_plot.plot([], [], 'r-', label='Beta Approx', lw=1.5, alpha=0.7)[0]
+        self.lines['beta_m'] = self.ax_plot.plot([], [], 'r-', lw=1.5, alpha=0.7)[0]
         self.lines['ref_sphere'] = self.ax_plot.plot([], [], '--', color='gray', alpha=0.5)[0]
         self.lines['neck'] = self.ax_plot.plot([], [], 'm-', lw=2, alpha=0.8)[0]
         self.lines['neck_m'] = self.ax_plot.plot([], [], 'm-', lw=2, alpha=0.8)[0]
+        self.lines['l_inf_marker'] = self.ax_plot.plot([], [], 'o-', color='orange', lw=2, markersize=6, alpha=0.9)[0]
+        self.lines['l_inf_marker_m'] = self.ax_plot.plot([], [], 'o-', color='orange', lw=2, markersize=6, alpha=0.9)[0]
 
         self.ax_plot.legend(loc='upper right')
 
@@ -307,7 +309,7 @@ class FoSShapePlotter:
         print(f"l_max:     {l_max}")
         if errors:
             print(f"RMSE:      {errors['rmse']:.4f} fm")
-            print(f"L_inf:     {errors['l_infinity']:.4f} fm")
+            print(f"L_inf:     {errors['l_infinity']:.4f} fm @ {np.degrees(errors['l_infinity_angle']):.2f}°")
         if surface_diff is not None:
             print(f"Surface Δ: {surface_diff:.4f} fm^2")
         print("-" * 50)
@@ -494,12 +496,13 @@ class FoSShapePlotter:
 
                 # Build metrics text with convergence status
                 status = "Converged" if fit_result.converged else "Max l reached"
+                l_inf_angle_deg = np.degrees(fit_result.errors['l_infinity_angle'])
                 metrics_text = (f"Beta Fit Metrics (N={self.n_calc}, {status}):\n"
                                 f"  l_max:       {fit_result.l_max}\n"
                                 f"  RMSE:        {fit_result.errors['rmse']:.4f} fm\n"
                                 f"  Chi^2:       {fit_result.errors['chi_squared']:.4f}\n"
                                 f"  Chi^2 (Red): {fit_result.errors['chi_squared_reduced']:.6f}\n"
-                                f"  L_inf:       {fit_result.errors['l_infinity']:.4f} fm\n"
+                                f"  L_inf:       {fit_result.errors['l_infinity']:.4f} fm @ {l_inf_angle_deg:.2f}°\n"
                                 f"  Surface Δ:   {fit_result.surface_diff:.4f} fm^2")
 
                 # Reconstruct for Plotting (LOW PRECISION via Downsampling)
@@ -511,12 +514,34 @@ class FoSShapePlotter:
 
                 self.lines['beta'].set_data(z_beta, rho_beta)
                 self.lines['beta_m'].set_data(z_beta, -rho_beta)
+
+                # Draw L_inf marker connecting FoS and Beta points at max error angle
+                l_inf_angle = fit_result.errors['l_infinity_angle']
+                idx_linf = np.argmin(np.abs(theta_calc - l_inf_angle))
+
+                # FoS point at L_inf angle
+                r_fos_at_linf = r_fos_sph_calc[idx_linf]
+                z_fos_linf = r_fos_at_linf * np.cos(l_inf_angle) - shift
+                rho_fos_linf = r_fos_at_linf * np.sin(l_inf_angle)
+
+                # Beta point at L_inf angle
+                r_beta_at_linf = fit_result.r_reconstructed[idx_linf]
+                z_beta_linf = r_beta_at_linf * np.cos(l_inf_angle) - shift
+                rho_beta_linf = r_beta_at_linf * np.sin(l_inf_angle)
+
+                # Draw connecting line with markers
+                self.lines['l_inf_marker'].set_data([z_fos_linf, z_beta_linf],
+                                                    [rho_fos_linf, rho_beta_linf])
+                self.lines['l_inf_marker_m'].set_data([z_fos_linf, z_beta_linf],
+                                                      [-rho_fos_linf, -rho_beta_linf])
             else:
                 spherical_text = "Shape not convertible to spherical.\n\n"
                 self.lines['fos_sph'].set_data([], [])
                 self.lines['fos_sph_m'].set_data([], [])
                 self.lines['beta'].set_data([], [])
                 self.lines['beta_m'].set_data([], [])
+                self.lines['l_inf_marker'].set_data([], [])
+                self.lines['l_inf_marker_m'].set_data([], [])
                 # Clear cached beta params when conversion fails
                 self._last_beta_result = None
         else:
@@ -525,6 +550,8 @@ class FoSShapePlotter:
             self.lines['fos_sph_m'].set_data([], [])
             self.lines['beta'].set_data([], [])
             self.lines['beta_m'].set_data([], [])
+            self.lines['l_inf_marker'].set_data([], [])
+            self.lines['l_inf_marker_m'].set_data([], [])
             self._last_beta_result = None
 
         # Auto-scale
