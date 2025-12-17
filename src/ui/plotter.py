@@ -532,7 +532,7 @@ class FoSShapePlotter:
                 rho_fos_at_linf = cyl_comparison['l_infinity_rho_fos']
                 rho_beta_at_linf = cyl_comparison['l_infinity_rho_beta']
 
-                # Draw connecting line with markers at the L_inf location
+                # Draw a connecting line with markers at the L_inf location
                 self.lines['l_inf_marker'].set_data([l_inf_z, l_inf_z],
                                                     [rho_fos_at_linf, rho_beta_at_linf])
                 self.lines['l_inf_marker_m'].set_data([l_inf_z, l_inf_z],

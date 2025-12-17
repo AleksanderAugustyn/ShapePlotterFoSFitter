@@ -27,7 +27,7 @@ class ShapeComparisonMetrics(TypedDict):
 
 
 class CylindricalComparisonMetrics(TypedDict):
-    """Metrics comparing beta fit to original FoS shape in cylindrical coordinates.
+    """Metrics comparing beta fit to the original FoS shape in cylindrical coordinates.
 
     This is the primary accuracy metric - it measures how well the entire
     pipeline (FoS → spherical → beta → cylindrical) reproduces the original shape.
@@ -417,7 +417,7 @@ class IterativeBetaFitter:
             z_shift: float,
             reference_surface: float
     ) -> CylindricalComparisonMetrics:
-        """Compare beta fit to original FoS shape in cylindrical coordinates.
+        """Compare beta fit to the original FoS shape in cylindrical coordinates.
 
         This is the PRIMARY accuracy metric - it measures how well the entire
         pipeline (FoS → spherical → beta → cylindrical) reproduces the original shape.
@@ -437,12 +437,12 @@ class IterativeBetaFitter:
         z_beta = r_beta * np.cos(theta_beta) - z_shift
         rho_beta = r_beta * np.sin(theta_beta)
 
-        # Create spline of original FoS for interpolation
+        # Create a spline of original FoS for interpolation
         sort_idx = np.argsort(z_original)
         z_orig_sorted = z_original[sort_idx]
         rho_orig_sorted = rho_original[sort_idx]
 
-        # Find valid z range for comparison (where both shapes exist)
+        # Find a valid z range for comparison (where both shapes exist)
         z_min_orig = float(z_orig_sorted[0])
         z_max_orig = float(z_orig_sorted[-1])
         z_min_beta = float(np.min(z_beta))
@@ -451,10 +451,10 @@ class IterativeBetaFitter:
         z_min_compare = max(z_min_orig, z_min_beta)
         z_max_compare = min(z_max_orig, z_max_beta)
 
-        # Create spline of original shape
+        # Create a spline of original shape
         spline_original = CubicSpline(z_orig_sorted, rho_orig_sorted, bc_type='natural', extrapolate=False)
 
-        # Mask for beta points within valid comparison range
+        # Mask for beta points within a valid comparison range
         # Exclude very tips (within 0.1 fm of endpoints) to avoid spline boundary artifacts
         margin = 0.1
         valid_mask = (z_beta >= z_min_compare + margin) & (z_beta <= z_max_compare - margin)
@@ -539,10 +539,10 @@ class IterativeBetaFitter:
         }
 
         # Track previous values for stagnation detection
-        prev_rmse: float = float('inf')
-        prev_linf: float = float('inf')
-        prev_surface_diff: float = float('inf')
-        min_improvement: float = 0.0001
+        # prev_rmse: float = float('inf')
+        # prev_linf: float = float('inf')
+        # prev_surface_diff: float = float('inf')
+        # min_improvement: float = 0.0001
 
         # Track iterations for threshold relaxation
         iteration_count: int = 0
@@ -605,20 +605,20 @@ class IterativeBetaFitter:
                 break
 
             # Check for stagnation
-            rmse_improvement = prev_rmse - rmse
-            linf_improvement = prev_linf - l_inf
-            surface_improvement = prev_surface_diff - surface_diff
-
-            if (rmse_improvement < min_improvement and
-                    linf_improvement < min_improvement and
-                    surface_improvement < min_improvement):
-                print(f"Stagnation detected at l_max={l_max}: improvements below {min_improvement}")
-                break
+            # rmse_improvement = prev_rmse - rmse
+            # linf_improvement = prev_linf - l_inf
+            # surface_improvement = prev_surface_diff - surface_diff
+            #
+            # if (rmse_improvement < min_improvement and
+            #         linf_improvement < min_improvement and
+            #         surface_improvement < min_improvement):
+            #     print(f"Stagnation detected at l_max={l_max}: improvements below {min_improvement}")
+            #     break
 
             # Update previous values
-            prev_rmse = rmse
-            prev_linf = l_inf
-            prev_surface_diff = surface_diff
+            # prev_rmse = rmse
+            # prev_linf = l_inf
+            # prev_surface_diff = surface_diff
 
             print(f"RMSE ρ: {rmse:.4f} fm, L_inf ρ: {l_inf:.4f} fm, Surface Diff: {surface_diff:.4f} fm²")
 
