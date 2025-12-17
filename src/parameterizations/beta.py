@@ -51,10 +51,12 @@ class BetaFitResult:
 
 # Fitting constants
 BATCH_SIZE: Final[int] = 32  # Number of beta parameters to add per iteration
-MAX_BETA: Final[int] = 512  # Maximum number of beta parameters for fitting
+MAX_BETA: Final[int] = 2 * 512  # Maximum number of beta parameters for fitting
 RMSE_THRESHOLD: Final[float] = 0.2  # RMSE convergence threshold in fm
 LINF_THRESHOLD: Final[float] = 0.4  # L-infinity convergence threshold in fm
 SURFACE_DIFF_THRESHOLD: Final[float] = 0.5  # Surface area difference threshold in fm^2
+SURFACE_DIFF_THRESHOLD_RELAXED: Final[float] = 4.0  # Relaxed surface area difference threshold in fm^2
+RELAX_ITERATION_THRESHOLD: Final[int] = 16  # Iteration to relax the surface diff threshold
 POLE_EXCLUSION_DEG: Final[float] = 0.0  # Exclude X° at each pole to avoid singularities
 
 
@@ -549,11 +551,11 @@ class IterativeBetaFitter:
         while l_max < self.max_beta:
             iteration_count += 1
 
-            # Relax the surface diff threshold after 10 iterations (320 parameters)
-            if iteration_count == 10 and not relaxed_threshold:
-                self.surface_diff_threshold = 4.0
+            # Relax the surface diff threshold after N iterations (N*32 parameters)
+            if iteration_count == RELAX_ITERATION_THRESHOLD and not relaxed_threshold:
+                self.surface_diff_threshold = SURFACE_DIFF_THRESHOLD_RELAXED
                 relaxed_threshold = True
-                print(f"Relaxing surface diff threshold to 4.0 fm² after 10 iterations")
+                print(f"Relaxing surface diff threshold to {SURFACE_DIFF_THRESHOLD_RELAXED:.1f} fm² after 10 iterations")
 
             # Determine batch range
             l_start = l_max + 1
