@@ -46,6 +46,7 @@ class FoSShapePlotter:
         # UI State
         self.show_text_info = True
         self.show_beta_approx = False
+        self.high_precision = False
         self.updating = False
         self.slider_buttons: dict[str, SliderControls] = {}
 
@@ -66,6 +67,7 @@ class FoSShapePlotter:
         self.sl_a6: Slider | None = None
         # Checkboxes and Buttons
         self.chk_text: CheckButtons | None = None
+        self.chk_high_precision: CheckButtons | None = None
         self.chk_beta: CheckButtons | None = None
         self.btn_reset: Button | None = None
         self.btn_save: Button | None = None
@@ -175,11 +177,12 @@ class FoSShapePlotter:
         self.sl_a6 = self.create_slider('a6', y_start + 6 * spacing, 'a6', -0.5, 0.5, 0.0, 0.01, markers=[-0.2, 0.2])
 
         # Checkboxes and Buttons
-        self.chk_text = CheckButtons(plt.axes((0.82, 0.45, 0.08, 0.032)), ['Show Info'], [True])
-        self.chk_beta = CheckButtons(plt.axes((0.82, 0.42, 0.08, 0.032)), ['Fit Beta'], [False])
-        self.btn_reset = Button(plt.axes((0.82, 0.37, 0.08, 0.032)), 'Reset')
-        self.btn_save = Button(plt.axes((0.82, 0.32, 0.08, 0.032)), 'Save Plot')
-        self.btn_print_beta = Button(plt.axes((0.82, 0.27, 0.08, 0.032)), 'Print Betas')
+        self.chk_text = CheckButtons(plt.axes((0.82, 0.48, 0.08, 0.032)), ['Show Info'], [True])
+        self.chk_high_precision = CheckButtons(plt.axes((0.82, 0.44, 0.08, 0.032)), ['High Precision'], [False])
+        self.chk_beta = CheckButtons(plt.axes((0.82, 0.40, 0.08, 0.032)), ['Fit Beta'], [False])
+        self.btn_reset = Button(plt.axes((0.82, 0.35, 0.08, 0.032)), 'Reset')
+        self.btn_save = Button(plt.axes((0.82, 0.30, 0.08, 0.032)), 'Save Plot')
+        self.btn_print_beta = Button(plt.axes((0.82, 0.25, 0.08, 0.032)), 'Print Betas')
 
     @staticmethod
     def _make_decrement(slider: Slider) -> Callable[[Any], None]:
@@ -219,6 +222,7 @@ class FoSShapePlotter:
             btn_inc.on_clicked(self._make_increment(slider))
 
         if self.chk_text: self.chk_text.on_clicked(self.toggle_text)
+        if self.chk_high_precision: self.chk_high_precision.on_clicked(self.toggle_high_precision)
         if self.chk_beta: self.chk_beta.on_clicked(self.toggle_beta)
         if self.btn_reset: self.btn_reset.on_clicked(self.reset_values)
         if self.btn_save: self.btn_save.on_clicked(self.save_plot)
@@ -226,6 +230,10 @@ class FoSShapePlotter:
 
     def toggle_text(self, _: Any) -> None:
         self.show_text_info = not self.show_text_info
+        self.update_plot(None)
+
+    def toggle_high_precision(self, _: Any) -> None:
+        self.high_precision = not self.high_precision
         self.update_plot(None)
 
     def toggle_beta(self, _: Any) -> None:
@@ -378,7 +386,10 @@ class FoSShapePlotter:
                 self.warning_text.set_visible(False)
 
         # 3. Downsample for Plotting
-        idx = np.linspace(0, self.n_calc - 1, self.n_plot, dtype=int)
+        if self.high_precision:
+            idx = np.arange(self.n_calc)
+        else:
+            idx = np.linspace(0, self.n_calc - 1, self.n_plot, dtype=int)
 
         self.lines['fos'].set_data(z_fos_calc[idx], rho_fos_calc[idx])
         self.lines['fos_m'].set_data(z_fos_calc[idx], -rho_fos_calc[idx])
@@ -580,9 +591,9 @@ class FoSShapePlotter:
             fos_cyl_text += "\n"
 
             info = (f"FoS Parameters:\n"
-                    f"c={self.params.c_elongation:.3f}, q2={self.params.q2:.3f}\n"
+                    f"c={self.params.c_elongation:.3f}, q2={self.params.q2:.3f}, a2={self.params.a2:.3f}\n"
                     f"a3={self.params.get_coefficient(3):.3f}, a4={self.params.get_coefficient(4):.3f}\n"
-                    f"R0={self.params.radius0:.3f}\n\n"
+                    f"R0={self.params.radius0:.3f}\n"
                     f"Spherical Nucleus:\n"
                     f"  Volume:  {sphere_vol:.2f} fm^3\n"
                     f"  Surface: {sphere_surf:.2f} fm^2\n\n"
