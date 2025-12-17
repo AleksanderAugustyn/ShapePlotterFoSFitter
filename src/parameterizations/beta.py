@@ -521,6 +521,7 @@ class IterativeBetaFitter:
                 progress_callback()
 
         status = "converged" if converged else f"reached max l_max={l_max}"
+        print(f"RMSE: {errors['rmse']:.4f} fm, L-infinity: {errors['l_infinity']:.4f} fm, Surface Diff: {surface_diff:.4f} fm²")
         print(f"Beta fitting completed: {status}")
 
         return BetaFitResult(

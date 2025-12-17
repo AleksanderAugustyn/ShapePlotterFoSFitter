@@ -509,9 +509,11 @@ class FoSShapePlotter:
                 # Build the primary accuracy metrics text
                 beta_vs_fos_text = (f"Beta vs Original FoS (Cylindrical):\n"
                                     f"  RMSE ρ:    {cyl_comparison['rmse_rho']:.4f} fm\n"
-                                    f"  L_inf ρ:   {cyl_comparison['l_infinity_rho']:.4f} fm @ z={cyl_comparison['l_infinity_z']:.2f} fm")
+                                    f"  L_inf ρ:   {cyl_comparison['l_infinity_rho']:.4f} fm @ z={cyl_comparison['l_infinity_z']:.2f} fm\n"
+                                    f"  Volume Δ:  {abs(beta_volume - fos_volume):.4f} fm^3\n"
+                                    f"  Surface Δ: {abs(beta_surface - fos_surface):.4f} fm^2\n")
 
-                # Reconstruct for Plotting (LOW PRECISION via Downsampling)
+                # Reconstruct for Plotting (downsampled for efficiency)
                 theta_plot = fit_result.theta_reconstructed[idx]
                 r_rec_plot = fit_result.r_reconstructed[idx]
 

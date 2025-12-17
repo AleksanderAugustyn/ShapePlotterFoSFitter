@@ -124,35 +124,50 @@ class CylindricalToSphericalConverter:
             return float(result[0])
         return result
 
-    def convert_to_spherical(self, n_theta: int = 180) -> Tuple[FloatArray, FloatArray]:
+    def convert_to_spherical(self, n_theta: int = 180, pole_exclusion_deg: float = 1.0) -> Tuple[FloatArray, FloatArray]:
         """Converts the shape to spherical coordinates r(θ).
 
         Uses a fast hybrid approach:
-        1. Geometry-aware initial guesses based on the shape extent
-        2. Vectorized Newton-Raphson for fast convergence
+        1. Analytical values at poles: r(0) = z_max, r(π) = |z_min|
+        2. Numerical Newton-Raphson for interior points (excluding pole region)
         3. Bisection fallback for points that don't converge
 
-        For each θ, solves: r·sin(θ) - ρ(r·cos(θ)) = 0
+        Args:
+            n_theta: Number of theta points (including poles).
+            pole_exclusion_deg: Degrees to exclude from numerical solving near poles.
+                               Poles are set analytically instead.
+
+        For each interior θ, solves: r·sin(θ) - ρ(r·cos(θ)) = 0
         """
         theta = np.linspace(0, np.pi, n_theta, dtype=np.float64)
-        sin_theta = np.sin(theta)
-        cos_theta = np.cos(theta)
+        r = np.zeros(n_theta, dtype=np.float64)
+
+        # Set pole values analytically (exact from geometry)
+        r[0] = abs(self.z_max)  # θ=0: tip at +z
+        r[-1] = abs(self.z_min)  # θ=π: tip at -z
+
+        # Determine which points need numerical solving (exclude poles)
+        pole_exclusion_rad = np.radians(pole_exclusion_deg)
+        interior_mask = (theta > pole_exclusion_rad) & (theta < np.pi - pole_exclusion_rad)
+        interior_indices = np.where(interior_mask)[0]
+
+        if len(interior_indices) == 0:
+            return theta, r
+
+        # Work only on interior points
+        theta_interior = theta[interior_indices]
+        sin_theta = np.sin(theta_interior)
+        cos_theta = np.cos(theta_interior)
 
         # Compute maximum possible r
         r_max = float(np.sqrt(self.z_points ** 2 + self.rho_points ** 2).max() * 1.5)
 
-        # Initialize r with geometry-aware guesses
-        r = np.zeros(n_theta, dtype=np.float64)
-        r[0] = abs(self.z_max)
-        r[-1] = abs(self.z_min)
-
-        # For interior points, compute initial guess based on ray-shape intersection
-        # At an angle θ, the ray z = r*cos(θ), ρ = r*sin(θ) should intersect the shape
-        # Initial guess: blend between pole values and equatorial value
+        # Initialize r for interior points with geometry-aware guesses
         rho_at_0 = max(float(self.rho_of_z(0.0)), 0.1)
-        for i in range(1, n_theta - 1):
+        r_interior = np.zeros(len(interior_indices), dtype=np.float64)
+
+        for i, idx in enumerate(interior_indices):
             # Smooth blend: at θ=0 use z_max, at θ=π use |z_min|, at θ=π/2 use ρ(0)
-            # Using sin²/cos² weighting for smooth transition
             w_pole = abs(cos_theta[i])
             w_equator = sin_theta[i]
 
@@ -161,29 +176,26 @@ class CylindricalToSphericalConverter:
             else:
                 r_pole = abs(self.z_min)
 
-            r[i] = w_pole * r_pole + w_equator * rho_at_0
+            r_interior[i] = w_pole * r_pole + w_equator * rho_at_0
 
         # Ensure positive initial values
-        r = np.maximum(r, 0.1)
+        r_interior = np.maximum(r_interior, 0.1)
 
-        # Newton-Raphson iteration (vectorized)
-        interior = np.ones(n_theta, dtype=bool)
-        interior[0] = interior[-1] = False
-
+        # Newton-Raphson iteration (vectorized on interior points only)
         for iteration in range(50):
-            z = r * cos_theta
+            z = r_interior * cos_theta
 
             # Evaluate ρ(z) and ρ'(z)
             in_range = (z >= self.z_min) & (z <= self.z_max)
-            rho_vals = np.zeros_like(r)
-            rho_prime = np.zeros_like(r)
+            rho_vals = np.zeros_like(r_interior)
+            rho_prime = np.zeros_like(r_interior)
 
             if np.any(in_range):
                 rho_vals[in_range] = np.maximum(self._spline(z[in_range]), 0.0)
                 rho_prime[in_range] = self._spline(z[in_range], 1)
 
             # f(r) = r·sin(θ) - ρ(z)
-            f = r * sin_theta - rho_vals
+            f = r_interior * sin_theta - rho_vals
 
             # f'(r) = sin(θ) - ρ'(z)·cos(θ)
             fp = sin_theta - rho_prime * cos_theta
@@ -192,32 +204,54 @@ class CylindricalToSphericalConverter:
             # Newton step with damping
             delta = f / fp
             # Limit step size
-            max_delta = 0.3 * r
+            max_delta = 0.3 * r_interior
             delta = np.clip(delta, -max_delta, max_delta)
 
-            r_new = np.where(interior, r - delta, r)
+            r_new = r_interior - delta
             r_new = np.clip(r_new, 0.01, r_max)
 
             # Check convergence
-            change = np.max(np.abs(r_new[interior] - r[interior]))
-            r = r_new
+            change = np.max(np.abs(r_new - r_interior))
+            r_interior = r_new
 
             if change < 1e-10:
                 break
 
         # Check for bad points and fix with bisection
-        z_final = r * cos_theta
+        z_final = r_interior * cos_theta
         in_range_final = (z_final >= self.z_min) & (z_final <= self.z_max)
-        rho_final = np.zeros_like(r)
+        rho_final = np.zeros_like(r_interior)
         if np.any(in_range_final):
             rho_final[in_range_final] = np.maximum(self._spline(z_final[in_range_final]), 0.0)
 
-        residual = np.abs(r * sin_theta - rho_final)
-        bad = interior & (residual > 0.01)
+        residual = np.abs(r_interior * sin_theta - rho_final)
+        bad = residual > 0.01
 
         if np.any(bad):
-            for i in np.where(bad)[0]:
-                r[i] = self._bisection_solve(theta[i], r_max)
+            bad_interior_indices = np.where(bad)[0]
+            for i in bad_interior_indices:
+                r_interior[i] = self._bisection_solve(theta_interior[i], r_max)
+
+        # Copy interior results back to full array
+        r[interior_indices] = r_interior
+
+        # Interpolate the excluded pole regions (between analytical pole and first/last interior point)
+        # This ensures smooth transition without numerical artifacts
+        first_interior = interior_indices[0]
+        last_interior = interior_indices[-1]
+
+        # Linear interpolation for near-pole regions
+        if first_interior > 1:
+            # Interpolate from θ=0 to first interior point
+            for i in range(1, first_interior):
+                t = theta[i] / theta[first_interior]
+                r[i] = r[0] * (1 - t) + r[first_interior] * t
+
+        if last_interior < n_theta - 2:
+            # Interpolate from last interior point to θ=π
+            for i in range(last_interior + 1, n_theta - 1):
+                t = (theta[i] - theta[last_interior]) / (theta[-1] - theta[last_interior])
+                r[i] = r[last_interior] * (1 - t) + r[-1] * t
 
         return theta, r
 
