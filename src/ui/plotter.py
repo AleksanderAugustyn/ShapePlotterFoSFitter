@@ -111,11 +111,11 @@ class FoSShapePlotter:
         self.ax_plot.set_ylabel('ρ (fm)')
 
         # Initialize lines
-        self.lines['fos'] = self.ax_plot.plot([], [], 'b-', label='FoS Shape', lw=3)[0]
+        self.lines['fos'] = self.ax_plot.plot([], [], 'b-', label='FoS (cylindrical, original)', lw=3)[0]
         self.lines['fos_m'] = self.ax_plot.plot([], [], 'b-', lw=3)[0]
-        self.lines['fos_sph'] = self.ax_plot.plot([], [], 'g--', label='FoS (Shifted Frame)', lw=2, alpha=0.7)[0]
+        self.lines['fos_sph'] = self.ax_plot.plot([], [], 'g--', label='FoS (spherical, shifted frame)', lw=2, alpha=0.7)[0]
         self.lines['fos_sph_m'] = self.ax_plot.plot([], [], 'g--', lw=2, alpha=0.7)[0]
-        self.lines['beta'] = self.ax_plot.plot([], [], 'r-', label='Beta Approx', lw=1.5, alpha=0.7)[0]
+        self.lines['beta'] = self.ax_plot.plot([], [], 'r-', label='Beta Fit', lw=1.5, alpha=0.7)[0]
         self.lines['beta_m'] = self.ax_plot.plot([], [], 'r-', lw=1.5, alpha=0.7)[0]
         self.lines['ref_sphere'] = self.ax_plot.plot([], [], '--', color='gray', alpha=0.5)[0]
         self.lines['neck'] = self.ax_plot.plot([], [], 'm-', lw=2, alpha=0.8)[0]
