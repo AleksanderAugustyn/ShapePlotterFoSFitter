@@ -10,13 +10,9 @@ from matplotlib.lines import Line2D
 from matplotlib.text import Text
 from matplotlib.widgets import Button, CheckButtons, Slider
 
-from src.parameterizations.beta import (
-    BetaDeformationCalculator,
-    BetaFitResult,
-    IterativeBetaFitter,
-)
-from src.parameterizations.fos import FoSParameters, FoSShapeCalculator
-from src.utilities.converter import CylindricalToSphericalConverter
+from src.parameterizations.beta import (BetaDeformationCalculator, BetaFitResult, IterativeBetaFitter)
+from src.parameterizations.fos import (FoSParameters, FoSShapeCalculator)
+from src.utilities.converter import (CylindricalToSphericalConverter)
 
 # Set backend
 matplotlib.use('TkAgg')
