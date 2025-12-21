@@ -6,9 +6,7 @@
 out
 gen
 *.png
-CLAUDE.md
 *.dat
 *.csv
 *.zip
 *.7z
-.claude
