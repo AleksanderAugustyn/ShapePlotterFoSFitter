@@ -119,6 +119,11 @@ class FoSShapePlotter:
         self.lines['l_inf_marker'] = self.ax_plot.plot([], [], 'o-', color='orange', lw=2, markersize=6, alpha=0.9)[0]
         self.lines['l_inf_marker_m'] = self.ax_plot.plot([], [], 'o-', color='orange', lw=2, markersize=6, alpha=0.9)[0]
 
+        # Center of mass markers (not in legend)
+        self.lines['com_fos'] = self.ax_plot.plot([], [], 'o', color='blue', markersize=8)[0]
+        self.lines['com_fos_sph'] = self.ax_plot.plot([], [], 'o', color='green', markersize=8)[0]
+        self.lines['com_beta'] = self.ax_plot.plot([], [], 'o', color='red', markersize=6)[0]
+
         self.ax_plot.legend(loc='upper right')
 
     def create_slider(self, name: str, y_pos: float, label: str,
@@ -389,6 +394,7 @@ class FoSShapePlotter:
 
         self.lines['fos'].set_data(z_fos_calc[idx], rho_fos_calc[idx])
         self.lines['fos_m'].set_data(z_fos_calc[idx], -rho_fos_calc[idx])
+        self.lines['com_fos'].set_data([fos_com], [0])
 
         # Update Reference Sphere
         theta_ref = np.linspace(0, 2 * np.pi, 180)
@@ -451,6 +457,7 @@ class FoSShapePlotter:
                 rho_sph = r_sph_plot * np.sin(theta_sph_plot)
                 self.lines['fos_sph'].set_data(z_sph, rho_sph)
                 self.lines['fos_sph_m'].set_data(z_sph, -rho_sph)
+                self.lines['com_fos_sph'].set_data([sph_com], [0])
 
                 # Calculate conversion metrics using the new method
                 conv_metrics = conv.calculate_round_trip_metrics(z_fos_calc, rho_fos_calc, shift)
@@ -524,6 +531,7 @@ class FoSShapePlotter:
 
                 self.lines['beta'].set_data(z_beta, rho_beta)
                 self.lines['beta_m'].set_data(z_beta, -rho_beta)
+                self.lines['com_beta'].set_data([beta_com - shift], [0])
 
                 # Draw L_inf marker at the location of maximum error IN CYLINDRICAL COORDINATES
                 # Need to get detailed comparison for the marker positions
@@ -552,6 +560,8 @@ class FoSShapePlotter:
                 self.lines['beta_m'].set_data([], [])
                 self.lines['l_inf_marker'].set_data([], [])
                 self.lines['l_inf_marker_m'].set_data([], [])
+                self.lines['com_fos_sph'].set_data([], [])
+                self.lines['com_beta'].set_data([], [])
                 # Clear cached beta params when conversion fails
                 self._last_beta_result = None
         else:
@@ -562,6 +572,8 @@ class FoSShapePlotter:
             self.lines['beta_m'].set_data([], [])
             self.lines['l_inf_marker'].set_data([], [])
             self.lines['l_inf_marker_m'].set_data([], [])
+            self.lines['com_fos_sph'].set_data([], [])
+            self.lines['com_beta'].set_data([], [])
             self._last_beta_result = None
 
         # Auto-scale
