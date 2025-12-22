@@ -7,12 +7,26 @@ OPTIMIZED VERSION:
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
 
 FloatArray = NDArray[np.float64]
+
+# Physical constants
+R0_NUCLEAR: float = 1.16  # Nuclear radius parameter [fm]
+AMU_MEV: float = 931.49410372  # Atomic mass unit [MeV]
+HBAR_C: float = 197.3269804  # ℏc [MeV·fm]
+HBAR_C_SQ: float = HBAR_C ** 2  # (ℏc)² [MeV²·fm²]
+# Nuclear matter density: ρ₀ = amu / (4π/3 r₀³) [MeV/fm³]
+NUCLEAR_DENSITY: float = AMU_MEV / ((4.0 / 3.0) * np.pi * R0_NUCLEAR ** 3)
+
+
+class MomentOfInertiaResult(TypedDict):
+    """Moment of inertia results (geometric, in fm^5)."""
+    moi_parallel: float  # Around symmetry axis (z-axis)
+    moi_perpendicular: float  # Around perpendicular axis
 
 
 @dataclass
@@ -295,6 +309,27 @@ class FoSShapeCalculator:
         vol = FoSShapeCalculator.calculate_volume(z, rho)
         if vol < 1e-10: return 0.0
         return FoSShapeCalculator._simpson_fast(z * np.pi * rho ** 2, z) / vol
+
+    @staticmethod
+    def calculate_moment_of_inertia(z: np.ndarray, rho: np.ndarray) -> MomentOfInertiaResult:
+        """Calculate geometric moments of inertia for cylindrical shape around origin.
+
+        For a solid of revolution with uniform density:
+        - moi_parallel (around z-axis): (π/2) ∫ ρ⁴ dz
+        - moi_perpendicular (around axis through origin, ⊥ to z): (π/4) ∫ ρ⁴ dz + π ∫ z² ρ² dz
+
+        Returns MOI in [ℏ²/MeV]
+        """
+        rho4 = rho ** 4
+        z2_rho2 = z ** 2 * rho ** 2
+
+        moi_parallel = (np.pi / 2.0) * FoSShapeCalculator._simpson_fast(rho4, z) * NUCLEAR_DENSITY / HBAR_C_SQ
+        moi_perpendicular = ((np.pi / 4.0) * FoSShapeCalculator._simpson_fast(rho4, z) + np.pi * FoSShapeCalculator._simpson_fast(z2_rho2, z)) * NUCLEAR_DENSITY / HBAR_C_SQ
+
+        return MomentOfInertiaResult(
+            moi_parallel=float(moi_parallel),
+            moi_perpendicular=float(moi_perpendicular)
+        )
 
     def find_neck_thickness(self, n_points: int = 7200) -> Optional[Tuple[float, float]]:
         """Find the radial thickness and z-position of the narrowest part of the neck.

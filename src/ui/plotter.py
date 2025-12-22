@@ -350,6 +350,7 @@ class FoSShapePlotter:
         z_fos_calc, rho_fos_calc, is_valid = calc.calculate_shape(self.n_calc)
 
         fos_volume, fos_surface, fos_com = calc.calculate_metrics_fast(self.n_calc)
+        fos_moi = FoSShapeCalculator.calculate_moment_of_inertia(z_fos_calc, rho_fos_calc)
 
         # 2a. Neck detection for shapes with pronounced necks (a4 + a6 >= 0.3)
         neck_rho: float | None = None
@@ -444,10 +445,16 @@ class FoSShapePlotter:
                 sph_volume = BetaDeformationCalculator.calculate_volume_spherical(theta_calc, r_fos_sph_calc)
                 sph_surface = BetaDeformationCalculator.calculate_surface_area_spherical(theta_calc, r_fos_sph_calc)
                 sph_com = BetaDeformationCalculator.calculate_center_of_mass_spherical(theta_calc, r_fos_sph_calc)
+                sph_moi_origin, sph_moi_cm = BetaDeformationCalculator.calculate_moment_of_inertia_spherical(
+                    theta_calc, r_fos_sph_calc, sph_volume, sph_com
+                )
                 spherical_text = (f"FoS Shape (spherical):\n"
-                                  f"  Volume:  {sph_volume:.2f} fm^3\n"
-                                  f"  Surface: {sph_surface:.2f} fm^2\n"
-                                  f"  CoM z:   {sph_com:.2f} fm\n\n")
+                                  f"  Volume:   {sph_volume:.2f} fm^3\n"
+                                  f"  Surface:  {sph_surface:.2f} fm^2\n"
+                                  f"  CoM z:    {sph_com:.2f} fm\n"
+                                  f"  I_para:   {sph_moi_cm['moi_parallel']:.2f} ℏ²/MeV\n"
+                                  f"  I_perp (origin): {sph_moi_origin['moi_perpendicular']:.2f} ℏ²/MeV\n"
+                                  f"  I_perp (CoM):    {sph_moi_cm['moi_perpendicular']:.2f} ℏ²/MeV\n\n")
 
                 # Plot the converted spherical shape in the SHIFTED frame where conversion happens
                 # (don't subtract shift - show where the origin actually is for the spherical representation)
@@ -505,12 +512,18 @@ class FoSShapePlotter:
                 beta_com = BetaDeformationCalculator.calculate_center_of_mass_spherical(
                     fit_result.theta_reconstructed, fit_result.r_reconstructed
                 )
+                beta_moi_origin, beta_moi_cm = BetaDeformationCalculator.calculate_moment_of_inertia_spherical(
+                    fit_result.theta_reconstructed, fit_result.r_reconstructed, beta_volume, beta_com
+                )
 
                 status = "Converged" if fit_result.converged else "Max l reached"
                 beta_fit_text = (f"Beta Fit Shape (l_max={fit_result.l_max}, {status}):\n"
-                                 f"  Volume:  {beta_volume:.2f} fm^3\n"
-                                 f"  Surface: {beta_surface:.2f} fm^2\n"
-                                 f"  CoM z:   {beta_com:.2f} fm\n\n")
+                                 f"  Volume:   {beta_volume:.2f} fm^3\n"
+                                 f"  Surface:  {beta_surface:.2f} fm^2\n"
+                                 f"  CoM z:    {beta_com:.2f} fm\n"
+                                 f"  I_para:   {beta_moi_cm['moi_parallel']:.2f} ℏ²/MeV\n"
+                                 f"  I_perp (origin): {beta_moi_origin['moi_perpendicular']:.2f} ℏ²/MeV\n"
+                                 f"  I_perp (CoM):    {beta_moi_cm['moi_perpendicular']:.2f} ℏ²/MeV\n\n")
 
                 # Use the errors from fit_result (already calculated as cylindrical comparison)
                 errors = fit_result.errors
@@ -590,11 +603,13 @@ class FoSShapePlotter:
 
             # Build FoS cylindrical metrics text with optional neck info
             fos_cyl_text = (f"FoS Shape (cylindrical):\n"
-                            f"  Volume:  {fos_volume:.2f} fm^3\n"
-                            f"  Surface: {fos_surface:.2f} fm^2\n"
-                            f"  CoM z:   {fos_com:.2f} fm\n")
+                            f"  Volume:   {fos_volume:.2f} fm^3\n"
+                            f"  Surface:  {fos_surface:.2f} fm^2\n"
+                            f"  CoM z:    {fos_com:.2f} fm\n"
+                            f"  I_para:   {fos_moi['moi_parallel']:.2f} ℏ²/MeV\n"
+                            f"  I_perp:   {fos_moi['moi_perpendicular']:.2f} ℏ²/MeV\n")
             if neck_rho is not None:
-                fos_cyl_text += f"  Neck ρ:  {neck_rho:.2f} fm\n"
+                fos_cyl_text += f"  Neck ρ:   {neck_rho:.2f} fm\n"
                 fos_cyl_text += fragment_ratio_text
             fos_cyl_text += "\n"
 

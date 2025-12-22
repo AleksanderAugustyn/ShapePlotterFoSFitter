@@ -14,7 +14,17 @@ from numpy.typing import NDArray
 from scipy.interpolate import CubicSpline
 from scipy.special import eval_legendre
 
+from src.parameterizations.fos import MomentOfInertiaResult
+
 FloatArray = NDArray[np.float64]
+
+# Physical constants
+R0_NUCLEAR: float = 1.16  # Nuclear radius parameter [fm]
+AMU_MEV: float = 931.49410372  # Atomic mass unit [MeV]
+HBAR_C: float = 197.3269804  # ℏc [MeV·fm]
+HBAR_C_SQ: float = HBAR_C ** 2  # (ℏc)² [MeV²·fm²]
+# Nuclear matter density: ρ₀ = amu / (4π/3 r₀³) [MeV/fm³]
+NUCLEAR_DENSITY: float = AMU_MEV / ((4.0 / 3.0) * np.pi * R0_NUCLEAR ** 3)
 
 
 class ShapeComparisonMetrics(TypedDict):
@@ -120,7 +130,7 @@ class BetaDeformationCalculator:
                  pole_exclusion_deg: float = POLE_EXCLUSION_DEG):
         theta = np.asarray(theta, dtype=np.float64)
         radius = np.asarray(radius, dtype=np.float64)
-        self.radius0 = 1.16 * number_of_nucleons ** (1 / 3)
+        self.radius0 = R0_NUCLEAR * number_of_nucleons ** (1 / 3)
 
         # Sort by theta
         sort_idx = np.argsort(theta)
@@ -316,6 +326,68 @@ class BetaDeformationCalculator:
         integrand = r ** 4 * cos_theta * sin_theta
 
         return float((np.pi / 2.0) * _simpson_fast(integrand, theta) / volume)
+
+    @staticmethod
+    def calculate_moment_of_inertia_spherical(
+            theta: np.ndarray,
+            r: np.ndarray,
+            volume: float | None = None,
+            com_z: float | None = None
+    ) -> tuple[MomentOfInertiaResult, MomentOfInertiaResult]:
+        """Calculate geometric MOI in spherical coordinates around origin and COM.
+
+        For an axially symmetric shape r(θ) with uniform density:
+        - moi_parallel (around z-axis): (2π/5) ∫₀^π r⁵ sin³(θ) dθ
+        - moi_perpendicular (around axis through origin, ⊥ to z): (π/5) ∫₀^π r⁵ sin(θ)(1 + cos²(θ)) dθ
+
+        Uses Steiner's theorem for COM values: I_cm = I_origin - V × d²
+
+        Args:
+            theta: Array of theta angles (radians).
+            r: Array of r(θ) values (fm).
+            volume: Pre-computed volume (fm³). If None, calculated internally.
+            com_z: Pre-computed z-coordinate of the center of mass (fm). If None, calculated internally.
+
+        Returns:
+            Tuple of (MOI_origin, MOI_com) in [ℏ²/MeV].
+        """
+        sin_theta = np.sin(theta)
+        cos_theta = np.cos(theta)
+        r5 = r ** 5
+
+        # moi_parallel (around z-axis)
+        sin3_theta = sin_theta ** 3
+        integrand_parallel = r5 * sin3_theta
+        moi_parallel = (2.0 * np.pi / 5.0) * _simpson_fast(integrand_parallel, theta) * NUCLEAR_DENSITY / HBAR_C_SQ
+
+        # moi_perpendicular (around axis through origin, perpendicular to z)
+        cos2_theta = cos_theta ** 2
+        integrand_perp = r5 * sin_theta * (1.0 + cos2_theta)
+        moi_perpendicular_origin = (np.pi / 5.0) * _simpson_fast(integrand_perp, theta) * NUCLEAR_DENSITY / HBAR_C_SQ
+
+        moi_origin = MomentOfInertiaResult(
+            moi_parallel=float(moi_parallel),
+            moi_perpendicular=float(moi_perpendicular_origin)
+        )
+
+        # Steiner's theorem: I_cm = I_origin - V * d^2
+        if volume is None:
+            volume = BetaDeformationCalculator.calculate_volume_spherical(theta, r)
+        if com_z is None:
+            com_z = BetaDeformationCalculator.calculate_center_of_mass_spherical(theta, r)
+
+        # moi_parallel: COM is on z-axis, so no shift needed
+        moi_parallel_cm = moi_parallel
+
+        # moi_perpendicular: shift by com_z
+        moi_perpendicular_cm = moi_perpendicular_origin - volume * (com_z ** 2) * NUCLEAR_DENSITY / HBAR_C_SQ
+
+        moi_cm = MomentOfInertiaResult(
+            moi_parallel=float(moi_parallel_cm),
+            moi_perpendicular=float(moi_perpendicular_cm)
+        )
+
+        return moi_origin, moi_cm
 
     @staticmethod
     def calculate_errors(r_original: np.ndarray,
