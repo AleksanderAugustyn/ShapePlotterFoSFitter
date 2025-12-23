@@ -61,6 +61,8 @@ class FoSShapePlotter:
         self.sl_a4: Slider | None = None
         self.sl_a5: Slider | None = None
         self.sl_a6: Slider | None = None
+        self.sl_a7: Slider | None = None
+        self.sl_a8: Slider | None = None
         # Checkboxes and Buttons
         self.chk_text: CheckButtons | None = None
         self.chk_high_precision: CheckButtons | None = None
@@ -176,6 +178,8 @@ class FoSShapePlotter:
         self.sl_a4 = self.create_slider('a4', y_start + 4 * spacing, 'a4', -0.75, 0.75, 0.0, 0.01, markers=[-0.2, 0.72])
         self.sl_a5 = self.create_slider('a5', y_start + 5 * spacing, 'a5', -0.5, 0.5, 0.0, 0.01, markers=[-0.2, 0.2])
         self.sl_a6 = self.create_slider('a6', y_start + 6 * spacing, 'a6', -0.5, 0.5, 0.0, 0.01, markers=[-0.2, 0.2])
+        self.sl_a7 = self.create_slider('a7', y_start + 7 * spacing, 'a7', -0.5, 0.5, 0.0, 0.01, markers=[-0.2, 0.2])
+        self.sl_a8 = self.create_slider('a8', y_start + 8 * spacing, 'a8', -0.5, 0.5, 0.0, 0.01, markers=[-0.2, 0.2])
 
         # Checkboxes and Buttons
         self.chk_text = CheckButtons(plt.axes((0.82, 0.48, 0.08, 0.032)), ['Show Info'], [True])
@@ -209,7 +213,7 @@ class FoSShapePlotter:
         """Sets up event handlers for sliders and buttons."""
         if self.sl_z is None: return
 
-        sliders = [self.sl_z, self.sl_n, self.sl_c, self.sl_a3, self.sl_a4, self.sl_a5, self.sl_a6]
+        sliders = [self.sl_z, self.sl_n, self.sl_c, self.sl_a3, self.sl_a4, self.sl_a5, self.sl_a6, self.sl_a7, self.sl_a8]
         for sl in sliders:
             if sl is not None:
                 sl.on_changed(self.update_plot)
@@ -272,16 +276,19 @@ class FoSShapePlotter:
         if self.sl_a4: self.sl_a4.set_val(0.0)
         if self.sl_a5: self.sl_a5.set_val(0.0)
         if self.sl_a6: self.sl_a6.set_val(0.0)
+        if self.sl_a7: self.sl_a7.set_val(0.0)
+        if self.sl_a8: self.sl_a8.set_val(0.0)
         self.updating = False
         self.update_plot(None)
 
     def save_plot(self, _: Any) -> None:
         if (self.sl_z is None or self.sl_n is None or self.sl_c is None or
                 self.sl_a3 is None or self.sl_a4 is None or
-                self.sl_a5 is None or self.sl_a6 is None or self.fig is None):
+                self.sl_a5 is None or self.sl_a6 is None or
+                self.sl_a7 is None or self.sl_a8 is None or self.fig is None):
             return
 
-        file_name = f"fos_shape_Z{int(self.sl_z.val)}_N{int(self.sl_n.val)}_c{self.sl_c.val:.2f}_a3{self.sl_a3.val:.2f}_a4{self.sl_a4.val:.2f}_a5{self.sl_a5.val:.2f}_a6{self.sl_a6.val:.2f}.png"
+        file_name = f"fos_shape_Z{int(self.sl_z.val)}_N{int(self.sl_n.val)}_c{self.sl_c.val:.2f}_a3{self.sl_a3.val:.2f}_a4{self.sl_a4.val:.2f}_a5{self.sl_a5.val:.2f}_a6{self.sl_a6.val:.2f}_a7{self.sl_a7.val:.2f}_a8{self.sl_a8.val:.2f}.png"
         self.fig.savefig(file_name, dpi=300, bbox_inches='tight')
         print(f"Saved {file_name}")
 
@@ -312,7 +319,8 @@ class FoSShapePlotter:
         print(f"Z={self.params.protons}, N={self.params.neutrons}, A={self.params.nucleons}")
         print(f"FoS: c={self.params.c_elongation:.4f}, a3={self.params.get_coefficient(3):.4f}, "
               f"a4={self.params.get_coefficient(4):.4f}, a5={self.params.get_coefficient(5):.4f}, "
-              f"a6={self.params.get_coefficient(6):.4f}")
+              f"a6={self.params.get_coefficient(6):.4f}, a7={self.params.get_coefficient(7):.4f}, "
+              f"a8={self.params.get_coefficient(8):.4f}")
         print("-" * 50)
         print(f"l_max:       {l_max}")
         if errors:
@@ -332,7 +340,7 @@ class FoSShapePlotter:
         # Ensure critical attributes are initialized
         if (self.sl_z is None or self.sl_n is None or self.sl_c is None or
                 self.sl_a3 is None or self.sl_a4 is None or self.sl_a5 is None or
-                self.sl_a6 is None or
+                self.sl_a6 is None or self.sl_a7 is None or self.sl_a8 is None or
                 self.ax_plot is None or self.ax_text is None or self.fig is None):
             return
 
@@ -344,6 +352,8 @@ class FoSShapePlotter:
         self.params.set_coefficient(4, self.sl_a4.val)
         self.params.set_coefficient(5, self.sl_a5.val)
         self.params.set_coefficient(6, self.sl_a6.val)
+        self.params.set_coefficient(7, self.sl_a7.val)
+        self.params.set_coefficient(8, self.sl_a8.val)
 
         # 2. Calculate FoS (HIGH PRECISION)
         calc = FoSShapeCalculator(self.params)
@@ -424,7 +434,8 @@ class FoSShapePlotter:
                   f"Z={self.params.protons}, N={self.params.neutrons}, "
                   f"c={self.params.c_elongation:.2f}, a3={self.params.get_coefficient(3):.2f}, "
                   f"a4={self.params.get_coefficient(4):.2f}, a5={self.params.get_coefficient(5):.2f}, "
-                  f"a6={self.params.get_coefficient(6):.2f}")
+                  f"a6={self.params.get_coefficient(6):.2f}, a7={self.params.get_coefficient(7):.2f}, "
+                  f"a8={self.params.get_coefficient(8):.2f}")
 
             # Use optimized shift finder for better beta fitting
             conv, shift, opt_metrics = CylindricalToSphericalConverter.find_optimal_beta_shift(
@@ -617,6 +628,7 @@ class FoSShapePlotter:
                     f"c={self.params.c_elongation:.2f}, q2={self.params.q2:.4f}, a2={self.params.a2:.4f}\n"
                     f"a3={self.params.get_coefficient(3):.2f}, a4={self.params.get_coefficient(4):.2f}\n"
                     f"a5={self.params.get_coefficient(5):.2f}, a6={self.params.get_coefficient(6):.2f}\n"
+                    f"a7={self.params.get_coefficient(7):.2f}, a8={self.params.get_coefficient(8):.2f}\n"
                     f"R0={self.params.radius0:.3f}\n"
                     f"Spherical Nucleus:\n"
                     f"  Volume:  {sphere_vol:.2f} fm^3\n"
