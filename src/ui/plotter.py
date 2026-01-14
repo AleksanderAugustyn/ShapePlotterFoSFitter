@@ -30,8 +30,8 @@ class FoSShapePlotter:
 
     def __init__(self) -> None:
         # --- CONFIGURATION ---
-        self.n_calc: int = 7200  # High precision for physics/fitting
-        self.n_plot: int = 720  # Sufficient for visual smoothness
+        self.n_calc: int = 7201  # High precision for physics/fitting, odd for Simpson's rule
+        self.n_plot: int = 721  # Sufficient for visual smoothness
 
         # Default parameters
         self.params = FoSParameters()
