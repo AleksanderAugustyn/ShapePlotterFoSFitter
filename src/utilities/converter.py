@@ -291,7 +291,7 @@ class CylindricalToSphericalConverter:
 
         return (r_lo + r_hi) / 2.0
 
-    def is_unambiguously_convertible(self, n_points: int = 720, tolerance: float = 1e-9) -> bool:
+    def is_unambiguously_convertible(self, n_points: int = 7200, tolerance: float = 1e-9) -> bool:
         """Checks if the shape is star-shaped w.r.t origin (monotonic theta(z)).
 
         The condition is: z·ρ'(z) - ρ(z) ≤ 0 for all z in [z_min, z_max].
@@ -313,7 +313,7 @@ class CylindricalToSphericalConverter:
 
         return not np.any(test_values > tolerance)
 
-    def _find_neck_z_position(self, n_samples: int = 720) -> Optional[float]:
+    def _find_neck_z_position(self, n_samples: int = 7200) -> Optional[float]:
         """Find the z-coordinate of the neck center.
 
         The neck is the minimum of ρ(z) between two local maxima (fragment tops).
@@ -561,7 +561,7 @@ class CylindricalToSphericalConverter:
             z_points: np.ndarray,
             rho_points: np.ndarray,
             z_sh: float,
-            n_check: int = 720,
+            n_check: int = 7200,
             shift_step: float = 0.1
     ) -> Tuple['CylindricalToSphericalConverter', float]:
         """Find a z-shift that makes the shape star-convex (unambiguously convertible).
